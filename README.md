@@ -1,5 +1,5 @@
 # PSAccountManager
-PowerSehll Password Manager
+PowerSehll Account Manager
 
 :warning: Please be careful when using it. It's still buggy. :warning:
 

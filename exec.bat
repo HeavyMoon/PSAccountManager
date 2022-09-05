@@ -1,26 +1,28 @@
+::
+:: MIT License
+::
+:: Copyright (c) 2022 HeavyMoon
+::
+:: Permission is hereby granted, free of charge, to any person obtaining a copy
+:: of this software and associated documentation files (the "Software"), to deal
+:: in the Software without restriction, including without limitation the rights
+:: to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+:: copies of the Software, and to permit persons to whom the Software is
+:: furnished to do so, subject to the following conditions:
+::
+:: The above copyright notice and this permission notice shall be included in all
+:: copies or substantial portions of the Software.
+::
+:: THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+:: IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+:: FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+:: AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+:: LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+:: OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+:: SOFTWARE.
+::
 @echo off
-REM  MIT License
-REM  
-REM  Copyright (c) 2022 HeavyMoon
-REM  
-REM  Permission is hereby granted, free of charge, to any person obtaining a copy
-REM  of this software and associated documentation files (the "Software"), to deal
-REM  in the Software without restriction, including without limitation the rights
-REM  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-REM  copies of the Software, and to permit persons to whom the Software is
-REM  furnished to do so, subject to the following conditions:
-REM  
-REM  The above copyright notice and this permission notice shall be included in all
-REM  copies or substantial portions of the Software.
-REM  
-REM  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-REM  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-REM  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-REM  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-REM  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-REM  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-REM  SOFTWARE.
-
+@if not "%~0"=="%~dp0.\%~nx0" start /min cmd /c,"%~dp0.\%~nx0" %* & goto :eof
 SET ScriptDir=%~dp0
 echo %ScriptDir:~0,-1%\main.ps1
 Powershell.exe -ExecutionPolicy remotesigned -Command "Add-Type -AssemblyName System.Windows.Forms;Add-Type -AssemblyName System.Drawing;%ScriptDir:~0,-1%\PSAccountManager.ps1"
