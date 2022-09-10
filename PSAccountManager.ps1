@@ -66,20 +66,20 @@ class Frame {
 # Item
 # ----------------------------
 class Item {
-    [int]    $index
-    [string] $label
-    [string] $id
-    [string] $pw
-    [string] $expdate
-    [string] $note
+    [string]   $label
+    [string]   $id
+    [string]   $pw
+    [bool]     $expdate_enabled
+    [datetime] $expdate
+    [string]   $note
 
     Item(){
-        $this.index   = 0
-        $this.label   = ""
-        $this.id      = ""
-        $this.pw      = ""
-        $this.expdate = ""
-        $this.note    = ""
+        $this.label           = ""
+        $this.id              = ""
+        $this.pw              = ""
+        $this.expdate_enabled = $false
+        $this.expdate         = [datetime]::Now
+        $this.note            = ""
     }
 }
 
@@ -130,18 +130,27 @@ class Items {
         $this.Sync()
     }
     [void] Remove([Item]$item){
-        $this.items.Remove($($this.items | Where-Object {$_.label -eq $item.label}))
-        $this.Sync()
+        if($item){
+            $this.items.Remove($($this.items | Where-Object {$_.label -eq $item.label}))
+            $this.Sync()
+        }
     }
     [void] Add([Item]$item){
-        $this.items.Add($this.ItemToPSCustomObject($item))
-        $this.Sync()
-    }
-    [int] GetMaxIndex(){
-        return $this.items | ForEach-Object {$_.index} |  Measure-Object -Maximum | Select-Object -ExpandProperty Maximum
+        if($item){
+            #$this.items.Add($this.ItemToPSCustomObject($item))
+            $this.items.Add($item)
+            $this.Sync()
+        }
     }
     [PSCustomObject] ItemToPSCustomObject([Item]$item){
-        return [PSCustomObject]@{index="$($item.index)"; label="$($item.label)"; id="$($item.id)"; pw="$($item.pw)"; expdate="$($item.expdate)"; note="$($item.note)"}
+        return [PSCustomObject]@{
+            label           = $item.label
+            id              = $item.id
+            pw              = $item.pw
+            expdate_enabled = $item.expdate_enabled
+            expdate         = $item.expdate
+            note            = $item.note
+        }
     }
 }
 
@@ -150,6 +159,8 @@ class Items {
 # ----------------------------
 class HomeView {
     [TableLayoutPanel] $view
+    [TextBox]          $MasterPw
+    [Button]           $btn_accept
 
     HomeView(){
         $this.view = New-Object TableLayoutPanel
@@ -174,22 +185,22 @@ class HomeView {
         $this.view.Controls.Add($title,0,0)
         $this.view.SetColumnSpan($title,2)
 
-        $mPasswd = New-Object TextBox
-        $mPasswd = [TextBox]@{
+        $this.MasterPw = New-Object TextBox
+        $this.MasterPw = [TextBox]@{
             PasswordChar = "*"
             Multiline = $false
             AcceptsReturn = $false
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($mPasswd,0,1)
+        $this.view.Controls.Add($this.MasterPw,0,1)
 
-        $okButton = New-Object Button
-        $okButton = [Button]@{
+        $this.btn_accept = New-Object Button
+        $this.btn_accept = [Button]@{
             Name = "ok"
             Text = "OK"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($okButton,1,1)
+        $this.view.Controls.Add($this.btn_accept,1,1)
     }
 }
 
@@ -198,6 +209,17 @@ class HomeView {
 # ----------------------------
 class ItemView {
     [TableLayoutPanel] $view
+    [TextBox]          $item_label
+    [TextBox]          $item_id
+    [Button]           $item_id_copy
+    [TextBox]          $item_pw1
+    [Button]           $item_pw1_copy
+    [TextBox]          $item_pw2
+    [Label]            $item_pw2_check
+    [DateTimePicker]   $item_expdate
+    [CheckBox]         $item_expdate_enabled
+    [TextBox]          $item_note
+    [Button]           $btn_update
 
     ItemView(){
         $this.view = New-Object TableLayoutPanel
@@ -218,104 +240,127 @@ class ItemView {
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Percent,100)))
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Absolute,80)))
         
-        $item_label = New-Object TextBox
-        $item_label = [TextBox]@{
+        $this.item_label = New-Object TextBox
+        $this.item_label = [TextBox]@{
             Name = "label"
             Text = ""
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_label,0,0)
-        $this.view.SetColumnSpan($item_label,2)
+        $this.view.Controls.Add($this.item_label,0,0)
+        $this.view.SetColumnSpan($this.item_label,2)
         
-        $item_id = New-Object TextBox
-        $item_id = [TextBox]@{
+        $this.item_id = New-Object TextBox
+        $this.item_id = [TextBox]@{
             Name = "id"
             Text = ""
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_id,0,1)
+        $this.view.Controls.Add($this.item_id,0,1)
 
-        $item_id_copy = New-Object Button
-        $item_id_copy = [Button]@{
+        $this.item_id_copy = New-Object Button
+        $this.item_id_copy = [Button]@{
             Name = "id_copy"
             Text = "COPY"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_id_copy,1,1)
+        $this.view.Controls.Add($this.item_id_copy,1,1)
         
-        $item_pw1 = New-Object TextBox
-        $item_pw1 = [TextBox]@{
+        $this.item_pw1 = New-Object TextBox
+        $this.item_pw1 = [TextBox]@{
             Name = "pw1"
             Text = ""
             PasswordChar = "*"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_pw1,0,2)
+        $this.view.Controls.Add($this.item_pw1,0,2)
 
-        $item_pw1_copy = New-Object Button
-        $item_pw1_copy = [Button]@{
+        $this.item_pw1_copy = New-Object Button
+        $this.item_pw1_copy = [Button]@{
             Name = "pw1_copy"
             Text = "COPY"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_pw1_copy,1,2)
+        $this.view.Controls.Add($this.item_pw1_copy,1,2)
 
-        $item_pw2 = New-Object TextBox
-        $item_pw2 = [TextBox]@{
+        $this.item_pw2 = New-Object TextBox
+        $this.item_pw2 = [TextBox]@{
             Name = "pw2"
             Text = ""
             PasswordChar = "*"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_pw2,0,3)
+        $this.view.Controls.Add($this.item_pw2,0,3)
         
-        $item_pw2_check = New-Object Label
-        $item_pw2_check = [Label]@{
+        $this.item_pw2_check = New-Object Label
+        $this.item_pw2_check = [Label]@{
             Name = "pw2_check"
             Text = ""
             TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_pw2_check,1,3)
+        $this.view.Controls.Add($this.item_pw2_check,1,3)
 
-        $item_expdate = New-Object DateTimePicker
-        $item_expdate = [DateTimePicker]@{
+        $this.item_expdate = New-Object DateTimePicker
+        $this.item_expdate = [DateTimePicker]@{
             Name = "expdate"
             Dock = [DockStyle]::Fill
             CustomFormat = "yyyy/MM/dd"
             Format = [DateTimePickerFormat]::Custom
+            Enabled = $false
         }
-        $this.view.Controls.Add($item_expdate,0,4)
-        $this.view.SetColumnSpan($item_expdate,2)
+        $this.view.Controls.Add($this.item_expdate,0,4)
+
+        $this.item_expdate_enabled = New-Object CheckBox
+        $this.item_expdate_enabled = [CheckBox]@{
+            Name = "expdate_enabled"
+            AutoCheck = $true
+        }
+        $this.view.Controls.Add($this.item_expdate_enabled,1,4)
         
-        $item_note = New-Object TextBox
-        $item_note = [TextBox]@{
+        $this.item_note = New-Object TextBox
+        $this.item_note = [TextBox]@{
             Name = "note"
             Text = ""
             Multiline = $true
             ScrollBars = [ScrollBars]::Vertical
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_note,0,5)
-        $this.view.SetColumnSpan($item_note,2)
+        $this.view.Controls.Add($this.item_note,0,5)
+        $this.view.SetColumnSpan($this.item_note,2)
         
-        $item_update = New-Object Button
-        $item_update = [Button]@{
+        $this.btn_update = New-Object Button
+        $this.btn_update = [Button]@{
             Name = "update"
             Text = "UPDATE"
             Dock = [DockStyle]::Fill
+            Enabled = $false
         }
-        $this.view.Controls.Add($item_update,0,6)
-        $this.view.SetColumnSpan($item_update,2)
+        $this.view.Controls.Add($this.btn_update,0,6)
+        $this.view.SetColumnSpan($this.btn_update,2)
     }
     [void] setItem([Item]$item){
-        $($this.view.Controls | Where-Object {$_.Name -eq "label"    }).Text = $item.label
-        $($this.view.Controls | Where-Object {$_.Name -eq "id"       }).Text = $item.id
-        $($this.view.Controls | Where-Object {$_.Name -eq "pw1"      }).Text = $item.pw
-        $($this.view.Controls | Where-Object {$_.Name -eq "pw2"      }).Text = ""
-        $($this.view.Controls | Where-Object {$_.Name -eq "pw2_check"}).Text = ""
-        $($this.view.Controls | Where-Object {$_.Name -eq "expdate"  }).Text = $item.expdate
-        $($this.view.Controls | Where-Object {$_.Name -eq "note"     }).Text = $item.note
+        $this.item_label.Text              = $item.label
+        $this.item_id.Text                 = $item.id
+        $this.item_pw1.Text                = $item.pw
+        $this.item_expdate.Value           = $item.expdate
+        $this.item_expdate_enabled.Checked = $item.expdate_enabled
+        $this.item_note.Text               = $item.note
+
+        $this.item_pw2.Text       = [string]::Empty
+        $this.item_pw2_check.Text = [string]::Empty
+        $this.btn_update.Enabled = $false
+    }
+    [void] Reset(){
+        $this.item_label.Text             = [string]::Empty
+        $this.item_id.Text                = [string]::Empty
+        $this.item_pw1.Text               = [string]::Empty
+        $this.item_expdate_enabled.Checked = $false
+        $this.item_expdate.Value          = [datetime]::Now
+        $this.item_note.Text              = [string]::Empty
+
+        $this.item_pw2.Text               = [string]::Empty
+        $this.item_pw2_check.Text         = [string]::Empty
+        $this.btn_update.Enabled = $false
     }
 }
 
@@ -324,6 +369,10 @@ class ItemView {
 # ----------------------------
 class ListView {
     [TableLayoutPanel] $view
+    [Button]           $btn_del
+    [Button]           $btn_new
+    [Button]           $btn_pref
+    [ListBox]          $listbox
 
     ListView(){
         $this.view = New-Object TableLayoutPanel
@@ -351,52 +400,52 @@ class ListView {
         }
         $this.view.Controls.Add($title,0,0)
 
-        $item_del = New-Object Button
-        $item_del = [Button]@{
+        $this.btn_del = New-Object Button
+        $this.btn_del = [Button]@{
             Name = "delete"
             Text = "DEL"
             Dock = [DockStyle]::Fill
+            Enabled = $false
         }
-        $this.view.Controls.Add($item_del,2,0)
+        $this.view.Controls.Add($this.btn_del,2,0)
 
-        $item_add = New-Object Button
-        $item_add= [Button]@{
+        $this.btn_new = New-Object Button
+        $this.btn_new= [Button]@{
             Name = "new"
             Text = "NEW"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_add,3,0)
+        $this.view.Controls.Add($this.btn_new,3,0)
 
-        $pref = New-Object Button
-        $pref = [Button]@{
+        $this.btn_pref = New-Object Button
+        $this.btn_pref = [Button]@{
             Name = "pref"
             Text = "PREF"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($pref,4,0)
+        $this.view.Controls.Add($this.btn_pref,4,0)
 
-        $item_list = New-Object ListBox
-        $item_list = [ListBox]@{
+        $this.listbox = New-Object ListBox
+        $this.listbox = [ListBox]@{
             Name = "list"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($item_list,0,1)
-        $this.view.SetColumnSpan($item_list,2)
+        $this.view.Controls.Add($this.listbox,0,1)
+        $this.view.SetColumnSpan($this.listbox,2)
     }
 
     [void] Add([Item]$item){
         if($item){
-            $($this.view.Controls | Where-Object {$_.Name -eq "list"  }).Items.Add($item.label)
+            $this.listbox.Items.Add($item.label)
+            if($item.expdate_enabled -and ((New-TimeSpan $item.expdate (Get-Date)) -lt 0)){
+                $this.listbox.Items[0].back
+            }
         }
     }
     [void] Remove([Item]$item){
-        $($this.view.Controls | Where-Object {$_.Name -eq "list"  }).Items.Remove($item.label)
-    }
-    [void] addItem([Item]$item){
-        $($this.view.Controls | Where-Object {$_.Name -eq "list"  }).Items.Add($item.label)
-    }
-    [void] delItem([Item]$item){
-        $($this.view.Controls | Where-Object {$_.Name -eq "list"  }).Items.Remove($item.label)
+        if($item){
+            $this.listbox.Items.Remove($item.label)
+        }
     }
     [void] setItemView([TableLayoutPanel]$itemView){
         $this.view.Controls.Add($itemView,2,1)
@@ -479,10 +528,9 @@ function main(){
 
 
     # itemView Events
-    $($itemView.view.Controls | Where-Object {$_.Name -eq "id_copy"}).Add_Click({
-        $tmp = $($itemView.view.Controls | Where-Object {$_.Name -eq "id"} | Select-Object -ExpandProperty Text)
-        if( -not ([string]::IsNullOrEmpty($tmp))){
-            Set-Clipboard $tmp
+    $itemView.item_id_copy.Add_Click({
+        if( -not [string]::IsNullOrEmpty($itemView.item_id.Text)){
+            Set-Clipboard $itemView.item_id.Text
         }else{
             $muri = @(
                 "無理 ( ´・∀・)┌"
@@ -496,10 +544,9 @@ function main(){
             Set-Clipboard $(Get-Random -InputObject $muri)
         }
     })
-    $($itemView.view.Controls | Where-Object {$_.Name -eq "pw1_copy"}).Add_Click({
-        $tmp = $($itemView.view.Controls | Where-Object {$_.Name -eq "pw1"} | Select-Object -ExpandProperty Text)
-        if( -not ([string]::IsNullOrEmpty($tmp))){
-            Set-Clipboard $tmp
+    $itemView.item_pw1_copy.Add_Click({
+        if( -not [string]::IsNullOrEmpty($itemView.item_pw1.Text)){
+            Set-Clipboard $itemView.item_pw1.Text
         }else{
             $yada = @(
                 "(´・д・｀)ﾔﾀﾞ"
@@ -512,36 +559,37 @@ function main(){
             Set-Clipboard $(Get-Random -InputObject $yada)
         }
     })
-    $($itemView.view.Controls | Where-Object {$_.Name -eq "pw2"}).Add_TextChanged({
-        $pw1 = $($itemView.view.Controls | Where-Object {$_.Name -eq "pw1"}).Text
-        if($pw1 -eq $this.Text){
-            $($itemView.view.Controls | Where-Object {$_.Name -eq "pw2_check"}).Text = "OK"
+    $itemView.item_pw2.Add_TextChanged({
+        if($itemView.item_pw1.Text -eq $itemView.item_pw2.Text){
+            $itemView.item_pw2_check.Text = "OK"
+            $itemView.btn_update.Enabled = $true
         }else{
-            $($itemView.view.Controls | Where-Object {$_.Name -eq "pw2_check"}).Text = "NG"
+            $itemView.item_pw2_check.Text = "NG"
+            $itemView.btn_update.Enabled = $false
         }
     })
-    $($itemView.view.Controls | Where-Object {$_.Name -eq "update"}).Add_Click({
-        $pw_check = $($itemView.view.Controls | Where-Object {$_.Name -eq "pw2_check"}).Text
-        if($pw_check -eq "OK"){
+    $itemView.btn_update.Add_Click({
+        Write-Host "update clicked"
+        if($itemView.item_pw2_check.Text -eq "OK"){
             $item = New-Object Item
             $item = [Item]@{
-                index   = 0
-                label   = $($itemView.view.Controls | Where-Object {$_.Name -eq "label"  }).Text
-                id      = $($itemView.view.Controls | Where-Object {$_.Name -eq "id"     }).Text
-                pw      = $($itemView.view.Controls | Where-Object {$_.Name -eq "pw1"    }).Text
-                expdate = $($itemView.view.Controls | Where-Object {$_.Name -eq "expdate"}).Text
-                note    = $($itemView.view.Controls | Where-Object {$_.Name -eq "note"   }).Text
+                label           = $itemView.item_label.Text
+                id              = $itemView.item_id.Text
+                pw              = $itemView.item_pw1.Text
+                expdate_enabled = $itemView.item_expdate_enabled.Checked
+                expdate         = $itemView.item_expdate.Value
+                note            = $itemView.item_note.Text
             }
-
+            $item | Format-List
             if($items.items | Where-Object {$_.label -eq $item.label }){
                 # update current item
                 $items.items | Where-Object {$_.label -eq $item.label } | ForEach-Object {
-                    $_.index   = $item.index
-                    $_.label   = $item.label
-                    $_.id      = $item.id
-                    $_.pw      = $item.pw
-                    $_.expdate = $item.expdate
-                    $_.note    = $item.note
+                    $_.label           = $item.label
+                    $_.id              = $item.id
+                    $_.pw              = $item.pw
+                    $_.expdate_enabled = $item.expdate_enabled
+                    $_.expdate         = $item.expdate
+                    $_.note            = $item.note
                 }
                 $items.Sync()
             }else{
@@ -549,38 +597,45 @@ function main(){
                 $items.Add($item)
                 $listView.Add($item)
             }
-        }else{
-            Write-Host "password check failed."
         }
     })
-    $($listView.view.Controls | Where-Object {$_.Name -eq "delete"}).Add_Click({
-        $item = $items.items | Where-Object {$_.label -eq $($listView.view.Controls | Where-Object {$_.Name -eq "list"}).SelectedItem }
-        if($item){
-            $items.Remove($item)
-            $listView.Remove($item)
+    $itemView.item_expdate_enabled.Add_CheckStateChanged({
+        if($itemView.item_expdate_enabled.Checked){
+            $itemView.item_expdate.Enabled = $true
+        }else{
+            $itemView.item_expdate.Enabled = $false
         }
     })
 
     # listView Events
     $listView.setItemView($itemView.view)
-    $($listView.view.Controls | Where-Object {$_.Name -eq "list"}).Add_SelectedIndexChanged({
-        $item = $items.items | Where-Object {$_.label -eq $($listView.view.Controls | Where-Object {$_.Name -eq "list"}).SelectedItem }
-        $itemView.setItem($item)
+    $listView.listbox.Add_SelectedIndexChanged({
+        if($listView.listbox.SelectedItem){
+            $item = $items.items | Where-Object {$_.label -eq $listView.listbox.SelectedItem }
+            $itemView.setItem($item)
+            $listView.btn_del.Enabled = $true
+        }else{
+            $itemView.Reset()
+            $listView.btn_del.Enabled = $false
+        }
     })
-    $($listView.view.Controls | Where-Object {$_.Name -eq "new"}).Add_Click({
-        $($itemView.view.Controls | Where-Object {$_.Name -eq "label"  }).Text = ""
-        $($itemView.view.Controls | Where-Object {$_.Name -eq "id"     }).Text = ""
-        $($itemView.view.Controls | Where-Object {$_.Name -eq "pw1"    }).Text = ""
-        $($itemView.view.Controls | Where-Object {$_.Name -eq "pw2"    }).Text = ""
-        $($itemView.view.Controls | Where-Object {$_.Name -eq "expdate"}).Text = ""
-        $($itemView.view.Controls | Where-Object {$_.Name -eq "note"   }).Text = ""
+    $listView.btn_del.Add_Click({
+        $item = $items.items | Where-Object {$_.label -eq $listView.listbox.SelectedItem }
+        if($item){
+            $items.Remove($item)
+            $itemView.Reset()
+            $listView.Remove($item)
+        }
     })
-    $($listView.view.Controls | Where-Object {$_.Name -eq "pref"}).Add_Click({
+    $listView.btn_new.Add_Click({
+        $itemView.Reset()
+    })
+    $listView.btn_pref.Add_Click({
         $prefFrame.ShowDialog()
     })
 
     # homeView Events
-    $($homeView.view.Controls | Where-Object {$_.Name -eq "ok"}).Add_Click({
+    $homeView.btn_accept.Add_Click({
         #TODO: if option enable check master password
         #[MessageBox]::Show("show message when decode failed.","title")
         $items.Open("${PSScriptRoot}\acdb.dat")
