@@ -38,6 +38,8 @@ class Frame {
             Text = "PSAccountManager"
             Font = New-Object System.Drawing.Font("Meiryo UI", 12)
             MaximizeBox = $false
+            ShowIcon = $true
+            Icon = "${PSScriptRoot}\icon.ico"
         }
     }
     [void] setView([TableLayoutPanel]$layout){
