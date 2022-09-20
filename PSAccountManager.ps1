@@ -87,49 +87,59 @@ class Item {
 
 class Items {
     [System.Collections.ArrayList] $items
-    [string] $file
+    [string] $path
+    [System.IO.FileStream] $stream
+    [System.IO.StreamReader]$sr
+    [System.IO.StreamWriter]$sw
 
     Items(){
         $this.items = New-Object System.Collections.ArrayList
     }
 
-    [void] Open([string]$file){
-        $this.file = $file
-        if(Test-Path $file) {
+    [int] Open([string]$path){
+        $this.path = $path
+        if($this.stream -eq $null){
             try{
-                #TODO: lock account file
-                #$file = [System.IO.File]::Open($file,[System.IO.FileMode]::Open,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
-                $secret = Get-Content $this.file | ConvertTo-SecureString
-                if( -not ([string]::IsNullOrEmpty($secret))){
-                    $bstr   = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
-                    $acdb   = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) | ConvertFrom-Json
-                    $acdb | ForEach-Object {
-                        $this.Add($_)
+                $this.stream = [System.IO.File]::Open($this.path,[System.IO.FileMode]::OpenOrCreate,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
+                if($?){
+                    $this.sr = [System.IO.StreamReader]::new($this.stream)
+                    $this.sw = [System.IO.StreamWriter]::new($this.stream)
+                    $str = $this.sr.ReadToEnd()
+                    if(-not [string]::IsNullOrEmpty($str)){
+                        $secret = ConvertTo-SecureString -String $str
+                        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
+                        $acdb = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) | ConvertFrom-Json
+                        $acdb | ForEach-Object {
+                            $this.Add($_)
+                        }
                     }
                 }
             }catch{
-                [MessageBox]::Show("account file is broken. force reset account file.","!! WARNING !!")
-                Copy-Item $this.file "${PSScriptRoot}\acdb.dat.broken_$(Get-Date -Format yyyymmdd-HHmmss)"
-                $null > $this.file
+                [MessageBox]::Show("acdb is locked.","!! WARNING !!")
+                return 1
             }
         }else{
-            New-Item -Path $file -ItemType File
-            #TODO: lock account file
-            #$file = [System.IO.File]::Open($file,[System.IO.FileMode]::Open,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
+            [MessageBox]::Show("file open failed!","!! WARNING !!")
+            return 1
         }
+        return 0
     }
     [void] Sync(){
         if($this.items){
-            $secret= $this.items | ConvertTo-Json | ConvertTo-SecureString -AsPlainText -Force
+            $secret = $this.items | ConvertTo-Json | ConvertTo-SecureString -AsPlainText -Force
             $encrypt = ConvertFrom-SecureString -SecureString $secret
-            $encrypt > $this.file
+            $this.sw.BaseStream.Position = 0
+            $this.sw.Write($encrypt)
+            $this.sw.Flush()
         }else{
             $null > $this.file
         }
     }
     [void] Close(){
-        #TODO: close and unlodk account file
         $this.Sync()
+        if($this.stream.Handle -ne $null){
+            $this.stream.Close()
+        }
     }
     [void] Remove([Item]$item){
         if($item){
@@ -139,19 +149,8 @@ class Items {
     }
     [void] Add([Item]$item){
         if($item){
-            #$this.items.Add($this.ItemToPSCustomObject($item))
             $this.items.Add($item)
             $this.Sync()
-        }
-    }
-    [PSCustomObject] ItemToPSCustomObject([Item]$item){
-        return [PSCustomObject]@{
-            label           = $item.label
-            id              = $item.id
-            pw              = $item.pw
-            expdate_enabled = $item.expdate_enabled
-            expdate         = $item.expdate
-            note            = $item.note
         }
     }
 }
@@ -640,12 +639,13 @@ function main(){
     $homeView.btn_accept.Add_Click({
         #TODO: if option enable check master password
         #[MessageBox]::Show("show message when decode failed.","title")
-        $items.Open("${PSScriptRoot}\acdb.dat")
-        $items.items | ForEach-Object {$listView.Add($_)}
-
-        $homeFrame.resetView()
-        $homeFrame.frame.AcceptButton = $null
-        $homeFrame.setView($listView.view,380,350)
+        $ret = $items.Open("${PSScriptRoot}\acdb.dat")
+        if ($ret -eq 0){
+            $items.items | ForEach-Object {$listView.Add($_)}
+            $homeFrame.resetView()
+            $homeFrame.frame.AcceptButton = $null
+            $homeFrame.setView($listView.view,380,350)
+        }
     })
 
     # initialize prefFrame
@@ -656,6 +656,6 @@ function main(){
     $homeFrame.frame.AcceptButton = $($homeView.view.Controls | Where-Object {$_.Name -eq "ok"})
     $homeFrame.ShowDialog()
 
-    #$items.Close()
+    $items.Close()
 }
 main

@@ -23,6 +23,6 @@ Then click the UPDATE button to add the account.
 
 
 ## PSPasswdGenerator
-![PSPG](./image/PSPG.PNG "PSPasswdGenerator")
+Run `Run_PSPG.bat` to start PSPasswdGenerator.
 
-Run `Run_PSPG.bat` to start PSAccountManager.  
+![PSPG](./image/PSPG.PNG "PSPasswdGenerator")
