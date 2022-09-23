@@ -64,6 +64,52 @@ class Frame {
     }
 }
 
+class Preferences{
+    [string]    $path
+    [hashtable] $prefs
+
+    Preferences(){
+        $this.path = "${PSScriptRoot}\prefs"
+        $this.prefs = @{}
+        $this.prefs.Add("acdb","${PSScriptRoot}\acdb.dat")
+        $this | Add-Member -Name acdb -MemberType ScriptProperty -Value {
+            return $this.prefs.acdb
+        } -SecondValue {
+            param($val)
+            $this.prefs.acdb = $val
+        }
+        $this.prefs.Add("MasterPasswd",$false)
+        $this | Add-Member -Name MasterPasswd -MemberType ScriptProperty -Value {
+            return $this.prefs.MasterPasswd
+        } -SecondValue {
+            param($val)
+            $this.prefs.MasterPasswd = $val
+        }
+        $this.prefs.Add("ExpHighlight",$false)
+        $this | Add-Member -Name ExpHighlight -MemberType ScriptProperty -Value {
+            return $this.prefs.ExpHighlight
+        } -SecondValue {
+            param($val)
+            $this.prefs.ExpHighlight = $val
+        }
+
+        if(Test-Path -Path $this.path -PathType Leaf){
+            $temp = Get-Content $this.path | ConvertFrom-Json
+            if(-not [string]::IsNullOrEmpty($temp)){
+                $this.prefs.MasterPasswd = $temp.MasterPasswd
+                $this.prefs.ExpHighlight = $temp.ExpHighlight
+            }
+        }else{
+            New-Item -Path $this.path -ItemType File
+        }
+        $this.Sync()
+    }
+
+    [void]Sync(){
+        ConvertTo-Json $this.prefs | Out-File -FilePath $this.path -Encoding utf8
+    }
+}
+
 # ----------------------------
 # Item
 # ----------------------------
@@ -100,7 +146,7 @@ class Items {
         $this.path = $path
         if($this.stream -eq $null){
             try{
-                $this.stream = [System.IO.File]::Open($this.path,[System.IO.FileMode]::OpenOrCreate,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
+                $this.stream = [System.IO.File]::Open($this.path,[System.IO.FileMode]::OpenOrCreate,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare ]::None)
                 if($?){
                     $this.sr = [System.IO.StreamReader]::new($this.stream)
                     $this.sw = [System.IO.StreamWriter]::new($this.stream)
@@ -162,6 +208,8 @@ class HomeView {
     [TableLayoutPanel] $view
     [TextBox]          $MasterPw
     [Button]           $btn_accept
+    [TextBox]          $acdb_path
+    [OpenFileDialog]   $openFileDialog
 
     HomeView(){
         $this.view = New-Object TableLayoutPanel
@@ -192,6 +240,7 @@ class HomeView {
             Multiline = $false
             AcceptsReturn = $false
             Dock = [DockStyle]::Fill
+            ReadOnly = $true
         }
         $this.view.Controls.Add($this.MasterPw,0,1)
 
@@ -455,61 +504,96 @@ class ListView {
 }
 
 # ----------------------------
-# Preference
+# Preference View
 # ----------------------------
 class PrefView {
     [TableLayoutPanel] $view
-
+    [CheckBox] $MasterPasswd
+    [TextBox]  $MasterPasswd_Check1
+    [TextBox]  $MasterPasswd_Check2
+    [Label]    $MasterPasswd_Check2_Status
+    [Button]   $MasterPasswd_Update
+    [CheckBox] $ExpHighlight
     PrefView(){
         $this.view = New-Object TableLayoutPanel
         $this.view = [TableLayoutPanel]@{
-            RowCount = 2
-            ColumnCount = 1
+            RowCount = 6
+            ColumnCount = 2
             Dock = [DockStyle]::Fill
             #AutoSize = $true
             #CellBorderStyle = [BorderStyle]::FixedSingle
         }
-        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,35)))
+        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
+        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
+        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
+        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
+        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
         $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Percent,100)))
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Percent,100)))
+        $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Absolute,100)))
         
         $title = New-Object Label
         $title = [Label]@{
             Name = "title"
-            Text = "Preferences"
+            Text = "Preferences (Experimental)"
             TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
             Dock = [DockStyle]::Fill
             #AutoSize = $true
         }
         $this.view.Controls.Add($title,0,0)
+        $this.view.SetColumnSpan($title,2)
 
-        $optExperimentalGroup = New-Object GroupBox
-        $optExperimentalGroup = [GroupBox]@{
-            Name = "optExperimentalGroup"
-            Text = "Experimental"
-            Dock = [DockStyle]::Fill
-            #AutoSize = $true
-            Padding= 50
-        }
-        $optEnableMasterPw = New-Object CheckBox
-        $optEnableMasterPw = [CheckBox]@{
-            Name = "optEnableMasterPw"
+        $this.MasterPasswd = New-Object CheckBox
+        $this.MasterPasswd = [CheckBox]@{
+            Name = "MasterPasswd"
             Text = "enable master password (default DPAPI)"
             Location = New-Object System.Drawing.Point(20,30)
             AutoSize = $true
         }
-        $optExperimentalGroup.Controls.Add($optEnableMasterPw)
+        $this.view.Controls.Add($this.MasterPasswd,0,1)
+        $this.view.SetColumnSpan($this.MasterPasswd,2)
 
-        $optEnableHighligtExpired = New-Object CheckBox
-        $optEnableHighligtExpired = [CheckBox]@{
+        $this.MasterPasswd_Check1 = New-Object TextBox
+        $this.MasterPasswd_Check1 = [TextBox]@{
+            PasswordChar = "*"
+            ReadOnly = $true
+            Dock = [DockStyle]::Fill
+        }
+        $this.view.Controls.Add($this.MasterPasswd_Check1,0,2)
+
+        $this.MasterPasswd_Update = New-Object Button
+        $this.MasterPasswd_Update = [Button]@{
+            Text = "UPDATE"
+            Dock = [DockStyle]::Fill
+            Enabled = $false
+        }
+        $this.view.Controls.Add($this.MasterPasswd_Update,1,2)
+
+        $this.MasterPasswd_Check2 = New-Object TextBox
+        $this.MasterPasswd_Check2 = [TextBox]@{
+            PasswordChar = "*"
+            ReadOnly = $true
+            Dock = [DockStyle]::Fill
+        }
+        $this.view.Controls.Add($this.MasterPasswd_Check2,0,3)
+
+        $this.MasterPasswd_Check2_Status = New-Object Label
+        $this.MasterPasswd_Check2_Status = [Label]@{
+            Text = ""
+            TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+            Dock = [DockStyle]::Fill
+        }
+        $this.view.Controls.Add($this.MasterPasswd_Check2_Status,1,3)
+
+        $this.ExpHighlight = New-Object CheckBox
+        $this.ExpHighlight = [CheckBox]@{
             Name = "optEnableHighligtExpired"
             Text = "highlight expired account"
             Location = New-Object System.Drawing.Point(20,60)
             AutoSize = $true
         }
-        $optExperimentalGroup.Controls.Add($optEnableHighligtExpired)
-
-        $this.view.Controls.Add($optExperimentalGroup,0,1)
+        $this.view.Controls.Add($this.ExpHighlight,0,4)
+        $this.view.SetColumnSpan($this.ExpHighlight,2)
     }
 }
 
@@ -517,6 +601,7 @@ class PrefView {
 # Main
 # ----------------------------
 function main(){
+    $prefs = New-Object Preferences
     $items = New-Object Items
 
     $homeFrame = New-Object Frame
@@ -558,6 +643,15 @@ function main(){
                 "(ｏ'ﾉ3')ﾋﾐﾂﾀﾞﾖ"
             )
             Set-Clipboard $(Get-Random -InputObject $yada)
+        }
+    })
+    $itemView.item_pw1.Add_TextChanged({
+        if($itemView.item_pw1.Text -eq $itemView.item_pw2.Text){
+            $itemView.item_pw2_check.Text = "OK"
+            $itemView.btn_update.Enabled = $true
+        }else{
+            $itemView.item_pw2_check.Text = "NG"
+            $itemView.btn_update.Enabled = $false
         }
     })
     $itemView.item_pw2.Add_TextChanged({
@@ -636,10 +730,12 @@ function main(){
     })
 
     # homeView Events
+    if($prefs.prefs.MasterPasswd){
+        $homeView.MasterPw.ReadOnly = $false
+    }
     $homeView.btn_accept.Add_Click({
-        #TODO: if option enable check master password
-        #[MessageBox]::Show("show message when decode failed.","title")
-        $ret = $items.Open("${PSScriptRoot}\acdb.dat")
+        #TODO: If the master password is valid, use the master password for decoding.
+        $ret = $items.Open($prefs.acdb)
         if ($ret -eq 0){
             $items.items | ForEach-Object {$listView.Add($_)}
             $homeFrame.resetView()
@@ -649,6 +745,56 @@ function main(){
     })
 
     # initialize prefFrame
+    $prefView.MasterPasswd.Checked = $prefs.MasterPasswd
+    if($prefs.MasterPasswd){
+        $prefView.MasterPasswd_Check1.ReadOnly = $false
+        $prefView.MasterPasswd_Check2.ReadOnly = $false
+    }
+    $prefView.MasterPasswd.Add_CheckedChanged({
+        if($this.Checked){
+            $prefView.MasterPasswd_Check1.ReadOnly = $false
+            $prefView.MasterPasswd_Check2.ReadOnly = $false
+            $prefs.MasterPasswd = $true
+        }else{
+            $prefView.MasterPasswd_Check1.ReadOnly = $true
+            $prefView.MasterPasswd_Check2.ReadOnly = $true
+            $prefs.MasterPasswd = $false
+        }
+        $prefs.Sync()
+    })
+    $prefView.ExpHighlight.Checked = $prefs.ExpHighligh
+    $prefView.ExpHighlight.Add_CheckedChanged({
+        if($this.Checked){
+            $prefs.ExpHighlight = $true
+        }else{
+            $prefs.ExpHighlight = $false
+        }
+        $prefs.Sync()
+    })
+    $prefView.MasterPasswd_Check1.Add_TextChanged({
+        if($prefView.MasterPasswd_Check1.Text -eq $prefView.MasterPasswd_Check2.Text){
+            $prefView.MasterPasswd_Check2_Status.Text = "OK"
+            $prefView.MasterPasswd_Update.Enabled = $true
+        }else{
+            $prefView.MasterPasswd_Check2_Status.Text = "NG"
+            $prefView.MasterPasswd_Update.Enabled = $false
+        }
+    })
+    $prefView.MasterPasswd_Check2.Add_TextChanged({
+        if($prefView.MasterPasswd_Check1.Text -eq $prefView.MasterPasswd_Check2.Text){
+            $prefView.MasterPasswd_Check2_Status.Text = "OK"
+            $prefView.MasterPasswd_Update.Enabled = $true
+        }else{
+            $prefView.MasterPasswd_Check2_Status.Text = "NG"
+            $prefView.MasterPasswd_Update.Enabled = $false
+        }
+    })
+    $prefView.MasterPasswd_Update.Add_Click({
+        if($prefView.MasterPasswd_Check2_Status.Text -eq "OK"){
+            #TODO: update master password
+            Write-Host 'master password will update'
+        }
+    })
     $prefFrame.setView($prefView.view,400,350)
 
     # initialize homeFrame

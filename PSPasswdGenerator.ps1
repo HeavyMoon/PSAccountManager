@@ -68,7 +68,7 @@ class Frame {
 # ----------------------------
 # Passwd Generator View
 # ----------------------------
-class PwGenView {
+class PasswdGeneratorView {
     [TableLayoutPanel] $view
 
     [TextBox] $passwd
@@ -76,14 +76,13 @@ class PwGenView {
     [Button]  $btn_gen
 
     [NumericUpDown] $opt_length
-    [string]   $opt_pattern
     [CheckBox] $opt_eliminate_similer
     [CheckBox] $opt_uppercase
     [CheckBox] $opt_lowercase
     [CheckBox] $opt_numbers
     [CheckBox] $opt_symbols
 
-    PwGenView(){
+    PasswdGeneratorView(){
         $this.view = New-Object TableLayoutPanel
         $this.view = [TableLayoutPanel]@{
             RowCount = 8
@@ -205,11 +204,10 @@ class PwGenView {
 # Main
 # ----------------------------
 function main(){
-    $pwgetView = New-Object PwGenView
-
-    $pwgetView.btn_copy.Add_Click({
-        if( -not [string]::IsNullOrEmpty($pwgetView.passwd.Text)){
-            Set-Clipboard "$($pwgetView.passwd.Text)"
+    $pwgenView = New-Object PasswdGeneratorView
+    $pwgenView.btn_copy.Add_Click({
+        if( -not [string]::IsNullOrEmpty($pwgenView.passwd.Text)){
+            Set-Clipboard "$($pwgenView.passwd.Text)"
         }else{
             $iyan = @(
                 "(/ω＼)ｲﾔﾝ♪"
@@ -224,51 +222,53 @@ function main(){
             Set-Clipboard $(Get-Random -InputObject $iyan)
         }
     })
-    $pwgetView.btn_gen.Add_Click({
+    $pwgenView.btn_gen.Add_Click({
+        $pattern = ""
 
-        # passwd pattern
-        $pwgetView.opt_pattern = ""
-        if($pwgetView.opt_lowercase.Checked){
-            $pwgetView.opt_pattern += "abcdefghijklmnopqrstuvwxyz"
-        }
-        if($pwgetView.opt_uppercase.Checked){
-            $pwgetView.opt_pattern += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        }
-        if($pwgetView.opt_numbers.Checked){
-            $pwgetView.opt_pattern += "0123456789"
-        }
-        if($pwgetView.opt_symbols.Checked){
-            $pwgetView.opt_pattern += "/*-+,!?=()@;:._"
-        }
-        if($pwgetView.opt_eliminate_similer.Checked){
-            if($pwgetView.opt_pattern.Contains("0") -and $pwgetView.opt_pattern.Contains("O")){
-                $pwgetView.opt_pattern = $pwgetView.opt_pattern | foreach {$_ -replace "0",""}
-            }
-            if($pwgetView.opt_pattern.Contains("1") -and $pwgetView.opt_pattern.Contains("l")){
-                $pwgetView.opt_pattern = $pwgetView.opt_pattern | foreach {$_ -replace "1",""}
-            }
-            if($pwgetView.opt_pattern.Contains("2") -and $pwgetView.opt_pattern.Contains("Z")){
-                $pwgetView.opt_pattern = $pwgetView.opt_pattern | foreach {$_ -replace "2",""}
-            }
-            if($pwgetView.opt_pattern.Contains("6") -and $pwgetView.opt_pattern.Contains("b")){
-                $pwgetView.opt_pattern = $pwgetView.opt_pattern | foreach {$_ -replace "6",""}
-            }
-            if($pwgetView.opt_pattern.Contains("9") -and $pwgetView.opt_pattern.Contains("g")){
-                $pwgetView.opt_pattern = $pwgetView.opt_pattern | foreach {$_ -replace "9",""}
-            }
+        if($pwgenView.opt_lowercase.Checked){
+            $pattern += "abcdefghijklmnopqrstuvwxyz"
         }
 
-        if( -not [string]::IsNullOrEmpty($pwgetView.opt_pattern)){
-            $ret =  -join ((1..$pwgetView.opt_length.Value) | % {Get-Random -input $pwgetView.opt_pattern.ToCharArray()})
-            $pwgetView.passwd.Text = $ret
+        if($pwgenView.opt_uppercase.Checked){
+            $pattern += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        }
+
+        if($pwgenView.opt_numbers.Checked){
+            $pattern += "0123456789"
+        }
+
+        if($pwgenView.opt_symbols.Checked){
+            $pattern += "/*-+,!?=()@;:._"
+        }
+
+        if($pwgenView.opt_eliminate_similer.Checked){
+            if($pattern.Contains("0") -and $pattern.Contains("O")){
+                $pattern = $pattern | foreach {$_ -replace "0",""}
+            }
+            if($pattern.Contains("1") -and $pattern.Contains("l")){
+                $pattern = $pattern | foreach {$_ -replace "1",""}
+            }
+            if($pattern.Contains("2") -and $pattern.Contains("Z")){
+                $pattern = $pattern | foreach {$_ -replace "2",""}
+            }
+            if($pattern.Contains("6") -and $pattern.Contains("b")){
+                $pattern = $pattern | foreach {$_ -replace "6",""}
+            }
+            if($pattern.Contains("9") -and $pattern.Contains("g")){
+                $pattern = $pattern | foreach {$_ -replace "9",""}
+            }
+        }
+
+        if( -not [string]::IsNullOrEmpty($pattern)){
+            $ret =  -join ((1..$pwgenView.opt_length.Value) | % {Get-Random -input $pattern.ToCharArray()})
+            $pwgenView.passwd.Text = $ret
         }else{
-            $pwgetView.passwd.Text = ""
+            $pwgenView.passwd.Text = ""
         }
     })
 
-
     $frame = New-Object Frame
-    $frame.setView($pwgetView.view)
+    $frame.setView($pwgenView.view,300,300)
     $frame.ShowDialog()
 }
 main
