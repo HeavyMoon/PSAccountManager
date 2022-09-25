@@ -28,6 +28,36 @@ Add-Type -AssemblyName System.Drawing
 # ----------------------------
 # Common
 # ----------------------------
+class CustomTextBox:TextBox{
+    [string]$PlaceHolder
+
+    CustomTextBox():base(){
+        $this.PlaceHolder = ""
+        $this.Text = $this.PlaceHolder
+        $this.Add_TextChanged({
+            if(-not [string]::IsNullOrEmpty($this.Text)){
+                $this.ForeColor = [System.Drawing.Color]::Black
+            }
+        })
+        $this.Add_GotFocus({
+            if($this.Text -eq $this.PlaceHolder){
+                $this.Text = ""
+                $this.ForeColor = [System.Drawing.Color]::Black
+            }
+        })
+        $this.Add_LostFocus({
+            if([string]::IsNullOrEmpty($this.Text)){
+                $this.Text = $this.PlaceHolder
+                $this.ForeColor = [System.Drawing.Color]::Gray
+            }
+        })
+    }
+    [void]SetPlaceHolder(){
+        $this.Text = $this.PlaceHolder
+        $this.ForeColor = [System.Drawing.Color]::Gray
+    }
+}
+
 class Frame {
     [Form]$frame
 
@@ -137,6 +167,7 @@ class Items {
     [System.IO.FileStream] $stream
     [System.IO.StreamReader]$sr
     [System.IO.StreamWriter]$sw
+    [string]$Private:AESKeyBase64
 
     Items(){
         $this.items = New-Object System.Collections.ArrayList
@@ -146,7 +177,7 @@ class Items {
         $this.path = $path
         if($this.stream -eq $null){
             try{
-                $this.stream = [System.IO.File]::Open($this.path,[System.IO.FileMode]::OpenOrCreate,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare ]::None)
+                $this.stream = [System.IO.File]::Open($this.path,[System.IO.FileMode]::OpenOrCreate,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
                 if($?){
                     $this.sr = [System.IO.StreamReader]::new($this.stream)
                     $this.sw = [System.IO.StreamWriter]::new($this.stream)
@@ -170,10 +201,50 @@ class Items {
         }
         return 0
     }
+    [int]Open([string]$path,[string]$AESKeyBase64){
+        $this.path = $path
+        $this.AESKeyBase64 = $AESKeyBase64
+        if($this.stream -eq $null){
+            try{
+                $this.stream = [System.IO.File]::Open($this.path,[System.IO.FileMode]::OpenOrCreate,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
+                if($?){
+                    $this.sr = [System.IO.StreamReader]::new($this.stream)
+                    $this.sw = [System.IO.StreamWriter]::new($this.stream)
+                    $str = $this.sr.ReadToEnd()
+                    if(-not [string]::IsNullOrEmpty($str)){
+                        $secret = ConvertTo-SecureString -String $str -Key ([System.Convert]::FromBase64String($this.AESKeyBase64))
+                        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
+                        $acdb = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) | ConvertFrom-Json
+                        $acdb | ForEach-Object {
+                            $this.Add($_)
+                        }
+                    }
+                }
+            }catch{
+                [MessageBox]::Show("acdb is locked.","!! WARNING !!")
+                return 1
+            }
+        }else{
+            [MessageBox]::Show("file open failed!","!! WARNING !!")
+            return 1
+        }
+        return 0
+    }
+
     [void] Sync(){
         if($this.items){
-            $secret = $this.items | ConvertTo-Json | ConvertTo-SecureString -AsPlainText -Force
-            $encrypt = ConvertFrom-SecureString -SecureString $secret
+            if([string]::IsNullOrEmpty($this.AESKeyBase64)){
+                # DPAPI
+                $secret = $this.items | ConvertTo-Json | ConvertTo-SecureString -AsPlainText -Force
+                $encrypt = ConvertFrom-SecureString -SecureString $secret
+                #$this.sw.BaseStream.Position = 0
+                #$this.sw.Write($encrypt)
+                #$this.sw.Flush()
+            }else{
+                # AES
+                $secret = $this.items | ConvertTo-Json | ConvertTo-SecureString -AsPlainText -Force
+                $encrypt = ConvertFrom-SecureString -SecureString $secret -Key ([System.Convert]::FromBase64String($this.AESKeyBase64))
+            }
             $this.sw.BaseStream.Position = 0
             $this.sw.Write($encrypt)
             $this.sw.Flush()
@@ -259,8 +330,8 @@ class HomeView {
 # ----------------------------
 class ItemView {
     [TableLayoutPanel] $view
-    [TextBox]          $item_label
-    [TextBox]          $item_id
+    [CustomTextBox]    $item_label
+    [CustomTextBox]    $item_id
     [Button]           $item_id_copy
     [TextBox]          $item_pw1
     [Button]           $item_pw1_copy
@@ -290,19 +361,21 @@ class ItemView {
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Percent,100)))
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Absolute,80)))
         
-        $this.item_label = New-Object TextBox
-        $this.item_label = [TextBox]@{
+        $this.item_label = New-Object CustomTextBox
+        $this.item_label = [CustomTextBox]@{
             Name = "label"
-            Text = ""
+            PlaceHolder = "Label"
+            Text = $this.PlaceHolder
             Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.item_label,0,0)
         $this.view.SetColumnSpan($this.item_label,2)
         
-        $this.item_id = New-Object TextBox
-        $this.item_id = [TextBox]@{
+        $this.item_id = New-Object CustomTextBox
+        $this.item_id = [CustomTextBox]@{
             Name = "id"
-            Text = ""
+            PlaceHolder = "ID"
+            Text = $this.PlaceHolder
             Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.item_id,0,1)
@@ -508,12 +581,13 @@ class ListView {
 # ----------------------------
 class PrefView {
     [TableLayoutPanel] $view
-    [CheckBox] $MasterPasswd
-    [TextBox]  $MasterPasswd_Check1
-    [TextBox]  $MasterPasswd_Check2
-    [Label]    $MasterPasswd_Check2_Status
-    [Button]   $MasterPasswd_Update
-    [CheckBox] $ExpHighlight
+    [CheckBox]       $MasterPasswd
+    [CustomTextBox]  $MasterPasswd_PassPhrase
+    [Button]         $MasterPasswd_Generate
+    [TextBox]        $MasterPasswd_AESKeyBase64
+    [Button]         $MasterPasswd_Update
+    [CheckBox]       $ExpHighlight
+
     PrefView(){
         $this.view = New-Object TableLayoutPanel
         $this.view = [TableLayoutPanel]@{
@@ -538,7 +612,6 @@ class PrefView {
             Text = "Preferences (Experimental)"
             TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
             Dock = [DockStyle]::Fill
-            #AutoSize = $true
         }
         $this.view.Controls.Add($title,0,0)
         $this.view.SetColumnSpan($title,2)
@@ -547,19 +620,35 @@ class PrefView {
         $this.MasterPasswd = [CheckBox]@{
             Name = "MasterPasswd"
             Text = "enable master password (default DPAPI)"
-            Location = New-Object System.Drawing.Point(20,30)
-            AutoSize = $true
+            Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.MasterPasswd,0,1)
         $this.view.SetColumnSpan($this.MasterPasswd,2)
 
-        $this.MasterPasswd_Check1 = New-Object TextBox
-        $this.MasterPasswd_Check1 = [TextBox]@{
-            PasswordChar = "*"
+        $this.MasterPasswd_PassPhrase = New-Object CustomTextBox
+        $this.MasterPasswd_PassPhrase = [CustomTextBox]@{
+            ReadOnly = $true
+            PlaceHolder = "PassPhrase"
+            Text = $this.PlaceHolder
+            Dock = [DockStyle]::Fill
+        }
+        $this.view.Controls.Add($this.MasterPasswd_PassPhrase,0,2)
+
+        $this.MasterPasswd_Generate = New-Object Button
+        $this.MasterPasswd_Generate = [Button]@{
+            Text = "GEN"
+            Dock = [DockStyle]::Fill
+            Enabled = $false
+        }
+        $this.view.Controls.Add($this.MasterPasswd_Generate,1,2)
+
+        $this.MasterPasswd_AESKeyBase64 = New-Object TextBox
+        $this.MasterPasswd_AESKeyBase64 = [TextBox]@{
+            #PasswordChar = "*"
             ReadOnly = $true
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($this.MasterPasswd_Check1,0,2)
+        $this.view.Controls.Add($this.MasterPasswd_AESKeyBase64,0,3)
 
         $this.MasterPasswd_Update = New-Object Button
         $this.MasterPasswd_Update = [Button]@{
@@ -567,29 +656,12 @@ class PrefView {
             Dock = [DockStyle]::Fill
             Enabled = $false
         }
-        $this.view.Controls.Add($this.MasterPasswd_Update,1,2)
-
-        $this.MasterPasswd_Check2 = New-Object TextBox
-        $this.MasterPasswd_Check2 = [TextBox]@{
-            PasswordChar = "*"
-            ReadOnly = $true
-            Dock = [DockStyle]::Fill
-        }
-        $this.view.Controls.Add($this.MasterPasswd_Check2,0,3)
-
-        $this.MasterPasswd_Check2_Status = New-Object Label
-        $this.MasterPasswd_Check2_Status = [Label]@{
-            Text = ""
-            TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-            Dock = [DockStyle]::Fill
-        }
-        $this.view.Controls.Add($this.MasterPasswd_Check2_Status,1,3)
+        $this.view.Controls.Add($this.MasterPasswd_Update,1,3)
 
         $this.ExpHighlight = New-Object CheckBox
         $this.ExpHighlight = [CheckBox]@{
             Name = "optEnableHighligtExpired"
             Text = "highlight expired account"
-            Location = New-Object System.Drawing.Point(20,60)
             AutoSize = $true
         }
         $this.view.Controls.Add($this.ExpHighlight,0,4)
@@ -711,6 +783,8 @@ function main(){
             $listView.btn_del.Enabled = $true
         }else{
             $itemView.Reset()
+            $itemView.item_label.SetPlaceHolder()
+            $itemView.item_id.SetPlaceHolder()
             $listView.btn_del.Enabled = $false
         }
     })
@@ -724,6 +798,8 @@ function main(){
     })
     $listView.btn_new.Add_Click({
         $itemView.Reset()
+        $itemView.item_label.SetPlaceHolder()
+        $itemView.item_id.SetPlaceHolder()
     })
     $listView.btn_pref.Add_Click({
         $prefFrame.ShowDialog()
@@ -734,8 +810,11 @@ function main(){
         $homeView.MasterPw.ReadOnly = $false
     }
     $homeView.btn_accept.Add_Click({
-        #TODO: If the master password is valid, use the master password for decoding.
-        $ret = $items.Open($prefs.acdb)
+        if($prefs.MasterPasswd){
+            $ret = $items.Open($prefs.acdb, $homeView.MasterPw.Text)
+        }else{
+            $ret = $items.Open($prefs.acdb)
+        }
         if ($ret -eq 0){
             $items.items | ForEach-Object {$listView.Add($_)}
             $homeFrame.resetView()
@@ -747,21 +826,48 @@ function main(){
     # initialize prefFrame
     $prefView.MasterPasswd.Checked = $prefs.MasterPasswd
     if($prefs.MasterPasswd){
-        $prefView.MasterPasswd_Check1.ReadOnly = $false
-        $prefView.MasterPasswd_Check2.ReadOnly = $false
+        $prefView.MasterPasswd_PassPhrase.ReadOnly = $false
+        $prefView.MasterPasswd_PassPhrase.SetPlaceHolder()
+        $prefView.MasterPasswd_Generate.Enabled = $true
+        $prefView.MasterPasswd_AESKeyBase64.Text = ""
+        $prefView.MasterPasswd_Update.Enabled = $true
     }
     $prefView.MasterPasswd.Add_CheckedChanged({
         if($this.Checked){
-            $prefView.MasterPasswd_Check1.ReadOnly = $false
-            $prefView.MasterPasswd_Check2.ReadOnly = $false
+            $prefView.MasterPasswd_PassPhrase.ReadOnly = $false
+            $prefView.MasterPasswd_PassPhrase.SetPlaceHolder()
+            $prefView.MasterPasswd_Generate.Enabled = $true
+            $prefView.MasterPasswd_AESKeyBase64.Text = ""
+            $prefView.MasterPasswd_Update.Enabled = $true
             $prefs.MasterPasswd = $true
         }else{
-            $prefView.MasterPasswd_Check1.ReadOnly = $true
-            $prefView.MasterPasswd_Check2.ReadOnly = $true
+            $prefView.MasterPasswd_PassPhrase.ReadOnly = $true
+            $prefView.MasterPasswd_PassPhrase.Text = ""
+            $prefView.MasterPasswd_Generate.Enabled = $false
+            $prefView.MasterPasswd_AESKeyBase64.Text = ""
+            $prefView.MasterPasswd_Update.Enabled = $false
             $prefs.MasterPasswd = $false
+            $items.AESKeyBase64 = ""
         }
         $prefs.Sync()
     })
+    $prefView.MasterPasswd_Generate.Add_Click({
+        if(-not [string]::IsNullOrEmpty($prefView.MasterPasswd_PassPhrase.Text)){
+            $Size = 128
+            $rfcKey = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($passwd,($Size/8))
+            $arrKey = $rfcKey.GetBytes($Size/8)
+            $AESKeyBase64 = [System.Convert]::ToBase64String($arrKey)
+            $prefView.MasterPasswd_AESKeyBase64.Text = $AESKeyBase64
+        }
+    })
+    $prefView.MasterPasswd_Update.Add_Click({
+        Write-Host 'master password will update' $prefView.MasterPasswd_AESKeyBase64.Text
+        $items.AESKeyBase64 = $prefView.MasterPasswd_AESKeyBase64.Text
+        Set-Clipboard $prefView.MasterPasswd_AESKeyBase64.Text
+        [MessageBox]::Show("Updated master password. The new password has been saved to the clipboard. Please keep it safe.","!! WARNING !!")
+    })
+
+
     $prefView.ExpHighlight.Checked = $prefs.ExpHighligh
     $prefView.ExpHighlight.Add_CheckedChanged({
         if($this.Checked){
@@ -770,30 +876,6 @@ function main(){
             $prefs.ExpHighlight = $false
         }
         $prefs.Sync()
-    })
-    $prefView.MasterPasswd_Check1.Add_TextChanged({
-        if($prefView.MasterPasswd_Check1.Text -eq $prefView.MasterPasswd_Check2.Text){
-            $prefView.MasterPasswd_Check2_Status.Text = "OK"
-            $prefView.MasterPasswd_Update.Enabled = $true
-        }else{
-            $prefView.MasterPasswd_Check2_Status.Text = "NG"
-            $prefView.MasterPasswd_Update.Enabled = $false
-        }
-    })
-    $prefView.MasterPasswd_Check2.Add_TextChanged({
-        if($prefView.MasterPasswd_Check1.Text -eq $prefView.MasterPasswd_Check2.Text){
-            $prefView.MasterPasswd_Check2_Status.Text = "OK"
-            $prefView.MasterPasswd_Update.Enabled = $true
-        }else{
-            $prefView.MasterPasswd_Check2_Status.Text = "NG"
-            $prefView.MasterPasswd_Update.Enabled = $false
-        }
-    })
-    $prefView.MasterPasswd_Update.Add_Click({
-        if($prefView.MasterPasswd_Check2_Status.Text -eq "OK"){
-            #TODO: update master password
-            Write-Host 'master password will update'
-        }
     })
     $prefFrame.setView($prefView.view,400,350)
 

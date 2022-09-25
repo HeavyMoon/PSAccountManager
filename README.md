@@ -3,12 +3,13 @@
 
 :warning: This program is probably still buggy. :warning:
 
-Run `Run_PSAM.bat` to start PSAccountManager.  
-The master password is not available in the current version. 
-However, account data is encrypted with DPAPI.
+Run `Run_PSAM.bat` to start PSAccountManager.
+In the default configuration, account data is encrypted with DPAPI.
+You can choose between DPAPI and AES as the encryption method.
 
 ![PSAM_home](./image/PSAM_home.PNG "PSAccountManager home")  
-![PSAM_list](./image/PSAM_list.PNG "PSAccountManager list")
+![PSAM_list](./image/PSAM_list.PNG "PSAccountManager list")  
+![PSAM_pref](./image/PSAM_pref.PNG "PSAccountManager pref")
 
 Account data has the following values:
 - label
