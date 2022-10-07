@@ -637,7 +637,7 @@ class PrefView {
 
         $this.EnableAESEncryptyonCheckBox= New-Object CheckBox
         $this.EnableAESEncryptyonCheckBox= [CheckBox]@{
-            Text = "enable AES Ecnryption (default DPAPI)"
+            Text = "enable AES Encryption (default DPAPI)"
             Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.EnableAESEncryptyonCheckBox,0,1)

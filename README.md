@@ -27,3 +27,6 @@ Then click the UPDATE button to add the account.
 Run `Run_PSPG.bat` to start PSPasswdGenerator.
 
 ![PSPG](./image/PSPG.PNG "PSPasswdGenerator")
+
+The symbols contain following characters:  
+`/*-+,!?=()@;:._`
