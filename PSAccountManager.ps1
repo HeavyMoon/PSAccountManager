@@ -273,8 +273,7 @@ class HomeView {
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Percent,70)))
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Percent,30)))
 
-        $this.TitleLabel = New-Object Label
-        $this.TitleLabel = [Label]@{
+        $this.TitleLabel = New-Object Label -Property @{
             TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
             Dock      = [DockStyle]::Fill
             Padding   = 5
@@ -282,8 +281,7 @@ class HomeView {
         $this.view.Controls.Add($this.TitleLabel,0,0)
         $this.view.SetColumnSpan($this.TitleLabel,2)
 
-        $this.AESKeyTextBox = New-Object TextBox
-        $this.AESKeyTextBox = [TextBox]@{
+        $this.AESKeyTextBox = New-Object TextBox -Property @{
             PasswordChar  = "*"
             Multiline     = $false
             AcceptsReturn = $false
@@ -291,8 +289,7 @@ class HomeView {
         }
         $this.view.Controls.Add($this.AESKeyTextBox,0,1)
 
-        $this.AcceptButton = New-Object Button
-        $this.AcceptButton = [Button]@{
+        $this.AcceptButton = New-Object Button -Property @{
             Text = "OK"
             Dock = [DockStyle]::Fill
         }
@@ -315,8 +312,7 @@ class ItemView {
     [Button]           $UpdateButton
 
     ItemView(){
-        $this.view = New-Object TableLayoutPanel
-        $this.view = [TableLayoutPanel]@{
+        $this.view = New-Object TableLayoutPanel -Property @{
             RowCount = 7
             ColumnCount = 2
             Dock = [DockStyle]::Fill
@@ -336,15 +332,13 @@ class ItemView {
         $this.view.Controls.Add($this.AccountLabel,0,0)
         $this.view.SetColumnSpan($this.AccountLabel,2)
         
-        $this.IDTextBox = New-Object TextBox
-        $this.IDTextBox = [TextBox]@{
+        $this.IDTextBox = New-Object TextBox -Property @{
             Text         = ""
             Dock         = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.IDTextBox,0,1)
 
-        $this.IDCopyButton = New-Object Button
-        $this.IDCopyButton = [Button]@{
+        $this.IDCopyButton = New-Object Button -Property @{
             Text = "COPY"
             Dock = [DockStyle]::Fill
         }
@@ -368,8 +362,7 @@ class ItemView {
         #})
         $this.view.Controls.Add($this.IDCopyButton,1,1)
         
-        $this.PasswdTextBox = New-Object TextBox
-        $this.PasswdTextBox = [TextBox]@{
+        $this.PasswdTextBox = New-Object TextBox -Property @{
             Text         = ""
             PasswordChar = "*"
             Dock         = [DockStyle]::Fill
@@ -381,8 +374,7 @@ class ItemView {
         #})
         $this.view.Controls.Add($this.PasswdTextBox,0,2)
 
-        $this.PasswdCopyButton = New-Object Button
-        $this.PasswdCopyButton = [Button]@{
+        $this.PasswdCopyButton = New-Object Button -Property @{
             Text = "COPY"
             Dock = [DockStyle]::Fill
         }
@@ -405,8 +397,7 @@ class ItemView {
         #})
         $this.view.Controls.Add($this.PasswdCopyButton,1,2)
 
-        $this.PasswdCheckTextBox = New-Object TextBox
-        $this.PasswdCheckTextBox = [TextBox]@{
+        $this.PasswdCheckTextBox = New-Object TextBox -Property @{
             Text         = ""
             PasswordChar = "*"
             Dock         = [DockStyle]::Fill
@@ -418,16 +409,14 @@ class ItemView {
         #})
         $this.view.Controls.Add($this.PasswdCheckTextBox,0,3)
         
-        $this.PasswdStatusLabel = New-Object Label
-        $this.PasswdStatusLabel = [Label]@{
+        $this.PasswdStatusLabel = New-Object Label -Property @{
             Text      = ""
             TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
             Dock      = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.PasswdStatusLabel,1,3)
 
-        $this.ExpirationDateTimePicker = New-Object DateTimePicker
-        $this.ExpirationDateTimePicker = [DateTimePicker]@{
+        $this.ExpirationDateTimePicker = New-Object DateTimePicker -Property @{
             Dock         = [DockStyle]::Fill
             CustomFormat = "yyyy/MM/dd"
             Format       = [DateTimePickerFormat]::Custom
@@ -435,8 +424,7 @@ class ItemView {
         }
         $this.view.Controls.Add($this.ExpirationDateTimePicker,0,4)
 
-        $this.ExpirationCheckBox = New-Object CheckBox
-        $this.ExpirationCheckBox = [CheckBox]@{
+        $this.ExpirationCheckBox = New-Object CheckBox -Property @{
             AutoCheck = $true
         }
         # FIXME: Add_CheckStateChangedのスクリプトブロック内の$thisはCheckBoxを参照しているため、ItemViewのほかのメンバを参照できない。
@@ -450,8 +438,7 @@ class ItemView {
         #})
         $this.view.Controls.Add($this.ExpirationCheckBox,1,4)
         
-        $this.NoteTextBox = New-Object TextBox
-        $this.NoteTextBox = [TextBox]@{
+        $this.NoteTextBox = New-Object TextBox -Property @{
             Text       = ""
             Multiline  = $true
             ScrollBars = [ScrollBars]::Vertical
@@ -460,8 +447,7 @@ class ItemView {
         $this.view.Controls.Add($this.NoteTextBox,0,5)
         $this.view.SetColumnSpan($this.NoteTextBox,2)
         
-        $this.UpdateButton = New-Object Button
-        $this.UpdateButton = [Button]@{
+        $this.UpdateButton = New-Object Button -Property @{
             Text    = "UPDATE"
             Dock    = [DockStyle]::Fill
             Enabled = $false
@@ -529,8 +515,7 @@ class ListView {
     [ItemView]         $itemView
 
     ListView(){
-        $this.view = New-Object TableLayoutPanel
-        $this.view = [TableLayoutPanel]@{
+        $this.view = New-Object TableLayoutPanel -Property @{
             RowCount = 2
             ColumnCount = 5
             Dock = [DockStyle]::Fill
@@ -544,8 +529,7 @@ class ListView {
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Absolute,80)))
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Absolute,80)))
 
-        $title = New-Object Label
-        $title = [Label]@{
+        $title = New-Object Label -Property @{
             Text = "Account List"
             TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
             Dock = [DockStyle]::Fill
@@ -553,30 +537,27 @@ class ListView {
         }
         $this.view.Controls.Add($title,0,0)
 
-        $this.DeleteButton = New-Object Button
-        $this.DeleteButton = [Button]@{
+        $this.DeleteButton = New-Object Button -Property @{
             Text = "DEL"
             Dock = [DockStyle]::Fill
             Enabled = $false
         }
         $this.view.Controls.Add($this.DeleteButton,2,0)
 
-        $this.NewButton = New-Object Button
-        $this.NewButton= [Button]@{
+        $this.NewButton = New-Object Button -Property @{
             Text = "NEW"
             Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.NewButton,3,0)
 
-        $this.PrefButton = New-Object Button
-        $this.PrefButton = [Button]@{
+        $this.PrefButton = New-Object Button -Property @{
             Text = "PREF"
             Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.PrefButton,4,0)
 
-        $this.AccountListBox = New-Object ListBox
-        $this.AccountListBox = [ListBox]@{
+        $this.AccountListBox = New-Object ListBox -Property @{
+            Sorted = $true
             Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.AccountListBox,0,1)
@@ -609,9 +590,13 @@ class PrefView {
     [Button]           $AESKeyUpdateButton
     [CheckBox]         $EnableExpiredAccountHighlightCheckbox
 
+    [GroupBox]         $EncryptionMethodGroupBox
+    [RadioButton]      $UseDPAPIEncryption
+    [RadioButton]      $UseAESEncryption
+    [RadioButton]      $UsePlainText
+
     PrefView(){
-        $this.view = New-Object TableLayoutPanel
-        $this.view = [TableLayoutPanel]@{
+        $this.view = New-Object TableLayoutPanel -Property @{
             RowCount = 6
             ColumnCount = 2
             Dock = [DockStyle]::Fill
@@ -626,25 +611,22 @@ class PrefView {
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Percent,100)))
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Absolute,100)))
         
-        $title = New-Object Label
-        $title = [Label]@{
-            Text = "Preferences (Experimental)"
+        $title = New-Object Label -Property @{
+            Text = "Preferences"
             TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
             Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($title,0,0)
         $this.view.SetColumnSpan($title,2)
 
-        $this.EnableAESEncryptyonCheckBox= New-Object CheckBox
-        $this.EnableAESEncryptyonCheckBox= [CheckBox]@{
-            Text = "enable AES Encryption (default DPAPI)"
+        $this.EnableAESEncryptyonCheckBox= New-Object CheckBox -Property @{
+            Text = "Enable AES Encryption (default DPAPI)"
             Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($this.EnableAESEncryptyonCheckBox,0,1)
         $this.view.SetColumnSpan($this.EnableAESEncryptyonCheckBox,2)
 
-        $this.AESPassPhraseTextBox = New-Object CustomTextBox
-        $this.AESPassPhraseTextBox = [CustomTextBox]@{
+        $this.AESPassPhraseTextBox = New-Object CustomTextBox -Property @{
             PlaceHolder = "PassPhrase"
             Text = $this.PlaceHolder
             Font = New-Object System.Drawing.Font("MS Gothic", 12)
@@ -653,16 +635,14 @@ class PrefView {
         }
         $this.view.Controls.Add($this.AESPassPhraseTextBox,0,2)
 
-        $this.AESKeyGenerateButton = New-Object Button
-        $this.AESKeyGenerateButton = [Button]@{
+        $this.AESKeyGenerateButton = New-Object Button -Property @{
             Text = "GEN"
             Dock = [DockStyle]::Fill
             Enabled = $false
         }
         $this.view.Controls.Add($this.AESKeyGenerateButton,1,2)
 
-        $this.AESKeyTextBox = New-Object TextBox
-        $this.AESKeyTextBox = [TextBox]@{
+        $this.AESKeyTextBox = New-Object TextBox -Property @{
             ReadOnly = $true
             Font = New-Object System.Drawing.Font("MS Gothic", 12)
             Dock = [DockStyle]::Fill
@@ -670,21 +650,44 @@ class PrefView {
         }
         $this.view.Controls.Add($this.AESKeyTextBox,0,3)
 
-        $this.AESKeyUpdateButton = New-Object Button
-        $this.AESKeyUpdateButton = [Button]@{
+        $this.AESKeyUpdateButton = New-Object Button -Property @{
             Text = "UPDATE"
             Dock = [DockStyle]::Fill
             Enabled = $false
         }
         $this.view.Controls.Add($this.AESKeyUpdateButton,1,3)
 
-        $this.EnableExpiredAccountHighlightCheckbox = New-Object CheckBox
-        $this.EnableExpiredAccountHighlightCheckbox = [CheckBox]@{
-            Text = "Enable Expired Account Highlight"
+        $this.EnableExpiredAccountHighlightCheckbox = New-Object CheckBox -Property @{
+            Text = "Enable Expired Account Highlight  (Experimental)"
             AutoSize = $true
         }
         $this.view.Controls.Add($this.EnableExpiredAccountHighlightCheckbox,0,4)
         $this.view.SetColumnSpan($this.EnableExpiredAccountHighlightCheckbox,2)
+
+        $this.UseDPAPIEncryption = New-Object RadioButton -Property @{
+            Text = 'Use DPAPI Encryption'
+            Location = "10,30"
+            AutoSize = $true
+        }
+        $this.UseAESEncryption = New-Object RadioButton -Property @{
+            Text = 'Use AES Encryption'
+            Location = "10,50"
+            AutoSize = $true
+        }
+        $this.UsePlainText = New-Object RadioButton -Property @{
+            Text = 'Use Plain Text'
+            Location = "10,70"
+            AutoSize = $true
+        }
+        $this.EncryptionMethodGroupBox = New-Object GroupBox -Property @{
+            Text = 'Encryption Method  (Experimental)'
+            Dock = [DockStyle]::Fill
+        }
+        $this.EncryptionMethodGroupBox.Controls.Add($this.UseDPAPIEncryption)
+        $this.EncryptionMethodGroupBox.Controls.Add($this.UseAESEncryption)
+        $this.EncryptionMethodGroupBox.Controls.Add($this.UsePlainText)
+        $this.view.Controls.Add($this.EncryptionMethodGroupBox,0,5)
+        $this.view.SetColumnSpan($this.EncryptionMethodGroupBox,2)
     }
 
     [void] SetPref([hashtable]$prefs){
@@ -866,13 +869,14 @@ function main(){
     })
 
     # Setup Pref View
-    $prefForm.SetView($prefView.view,400,350)
+    $prefForm.SetView($prefView.view,450,310)
     $prefView.SetPref($PSAMPref.Prefs)
 
     $prefView.EnableAESEncryptyonCheckBox.Add_CheckedChanged({
         if($this.Checked){
             $prefView.AESPassPhraseTextBox.Enabled      = $true
             $prefView.AESPassPhraseTextBox.SetPlaceHolder()
+            $prefView.AESKeyTextBox.Enabled             = $true
             $prefView.AESKeyTextBox.Text                = ""
             $prefView.AESKeyGenerateButton.Enabled      = $true
             $prefView.AESKeyUpdateButton.Enabled        = $true
@@ -880,6 +884,7 @@ function main(){
         }else{
             $prefView.AESPassPhraseTextBox.Enabled      = $false
             $prefView.AESPassPhraseTextBox.Text         = ""
+            $prefView.AESKeyTextBox.Enabled             = $false
             $prefView.AESKeyTextBox.Text                = ""
             $prefView.AESKeyGenerateButton.Enabled      = $false
             $prefView.AESKeyUpdateButton.Enabled        = $false

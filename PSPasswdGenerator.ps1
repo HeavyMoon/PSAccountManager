@@ -25,66 +25,46 @@ using namespace System.Windows.Forms
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# ----------------------------
-# Common
-# ----------------------------
-class Frame {
-    [Form]$frame
-
-    Frame(){
-        $this.frame = New-Object Form
-        $this.frame = [Form]@{
-            Name = "frame"
-            Text = "PSPasswdGenerator"
-            Font = New-Object System.Drawing.Font("Meiryo UI", 12)
-            MaximizeBox = $false
-            ShowIcon = $true
-            Icon = "${PSScriptRoot}\icon.ico"
-        }
+class CustomForm:Form {
+    CustomForm():base(){
+        $this.Text        = "PSPasswdGenerator"
+        $this.Font        = New-Object System.Drawing.Font("Meiryo UI", 12)
+        $this.MaximizeBox = $false
+        $this.ShowIcon    = $true
+        $this.Icon        = "${PSScriptRoot}\icon.ico"
     }
-    [void] setView([TableLayoutPanel]$layout){
-        $this.frame.Controls.Add($layout)
+    [void] SetView([TableLayoutPanel]$layout){
+        $this.Controls.Add($layout)
     }
-    [void] setView([TableLayoutPanel]$layout,[int]$x,[int]$y){
-        $this.frame.Controls.Add($layout)
-        $this.frame.MaximumSize = [System.Drawing.Size]::new(0,0)
-        $this.frame.MinimumSize = [System.Drawing.Size]::new(0,0)
-        $this.frame.Size = [System.Drawing.Size]::new($x,$y)
-        #$this.frame.MaximumSize = $this.frame.Size
-        $this.frame.MinimumSize = $this.frame.Size
+    [void] SetView([TableLayoutPanel]$layout,[int]$x,[int]$y){
+        $this.Controls.Add($layout)
+        $this.MaximumSize = [System.Drawing.Size]::new(0,0)
+        $this.MinimumSize = [System.Drawing.Size]::new(0,0)
+        $this.Size        = [System.Drawing.Size]::new($x,$y)
+        #$this.MaximumSize = $this.Size
+        $this.MinimumSize = $this.Size
     }
-    [void] resetView(){
-        $this.frame.Controls.Clear()
-    }
-    [void] ShowDialog(){
-        $this.frame.ShowDialog()
-    }
-    [void] Close(){
-        $this.frame.Close()
+    [void] ClearView(){
+        $this.Controls.Clear()
     }
 }
 
-
-# ----------------------------
-# Passwd Generator View
-# ----------------------------
 class PasswdGeneratorView {
     [TableLayoutPanel] $view
 
-    [TextBox] $passwd
-    [Button]  $btn_copy
-    [Button]  $btn_gen
+    [TextBox] $PasswdTextBox
+    [Button]  $PasswdCopyButton
+    [Button]  $PasswdGenerateButton
 
-    [NumericUpDown] $opt_length
-    [CheckBox] $opt_eliminate_similer
-    [CheckBox] $opt_uppercase
-    [CheckBox] $opt_lowercase
-    [CheckBox] $opt_numbers
-    [CheckBox] $opt_symbols
+    [NumericUpDown] $PasswdLenghtNumUpDown
+    [CheckBox] $EliminateSimilerCharsCheckBox
+    [CheckBox] $UseUppercaseCheckBox
+    [CheckBox] $UseLowercaseCheckBox
+    [CheckBox] $UseNumbersCheckBox
+    [CheckBox] $UseSymbolsCheckBox
 
     PasswdGeneratorView(){
-        $this.view = New-Object TableLayoutPanel
-        $this.view = [TableLayoutPanel]@{
+        $this.view = New-Object TableLayoutPanel -Property @{
             RowCount = 8
             ColumnCount = 4
             Dock = [DockStyle]::Fill
@@ -102,100 +82,90 @@ class PasswdGeneratorView {
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Absolute,80)))
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Absolute,80)))
 
-        $this.passwd = New-Object TextBox
-        $this.passwd = [TextBox]@{
+        $this.PasswdTextBox = New-Object TextBox -Property @{
             Text = ""
             #ReadOnly = $true
             Multiline = $false
             Dock = [DockStyle]::Fill
             Font = New-Object System.Drawing.Font("MS Gothic", 12)
         }
-        $this.view.Controls.Add($this.passwd,0,0)
-        $this.view.SetColumnSpan($this.passwd,2)
+        $this.view.Controls.Add($this.PasswdTextBox,0,0)
+        $this.view.SetColumnSpan($this.PasswdTextBox,2)
 
-        $this.btn_gen = New-Object Button
-        $this.btn_gen = [Button]@{
+        $this.PasswdGenerateButton = New-Object Button -Property @{
             Text = "GEN"
             Dock = [DockStyle]::Fill
             AutoSize = $true
         }
-        $this.view.Controls.Add($this.btn_gen,2,0)
+        $this.view.Controls.Add($this.PasswdGenerateButton,2,0)
 
-        $this.btn_copy = New-Object Button
-        $this.btn_copy = [Button]@{
+        $this.PasswdCopyButton = New-Object Button -Property @{
             Text = "COPY"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($this.btn_copy,3,0)
+        $this.view.Controls.Add($this.PasswdCopyButton,3,0)
 
-        $lable_length = New-Object Label
-        $lable_length = [Label]@{
+        $lable_length = New-Object Label -Property @{
             Text = "passwd length"
             Dock = [DockStyle]::Fill
             TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
         }
         $this.view.Controls.Add($lable_length,0,1)
         
-        $this.opt_length = New-Object NumericUpDown
-        $this.opt_length = [NumericUpDown]@{
+        $this.PasswdLenghtNumUpDown = New-Object NumericUpDown -Property @{
             Value = 8
             Minimum = 1
             Maximum = 128
             TextAlign = [HorizontalAlignment]::Center
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($this.opt_length,1,1)
-        $this.view.SetColumnSpan($this.opt_length,3)
+        $this.view.Controls.Add($this.PasswdLenghtNumUpDown,1,1)
+        $this.view.SetColumnSpan($this.PasswdLenghtNumUpDown,3)
 
-        $this.opt_eliminate_similer = New-Object CheckBox
-        $this.opt_eliminate_similer = [CheckBox]@{
+        $this.EliminateSimilerCharsCheckBox = New-Object CheckBox -Property @{
             Text = "eliminate similer chars"
             Checked = $false
             Dock = [DockStyle]::Fill
             Padding = 5
         }
-        $this.view.Controls.Add($this.opt_eliminate_similer,0,2)
-        $this.view.SetColumnSpan($this.opt_eliminate_similer,4)
+        $this.view.Controls.Add($this.EliminateSimilerCharsCheckBox,0,2)
+        $this.view.SetColumnSpan($this.EliminateSimilerCharsCheckBox,4)
 
-        $this.opt_lowercase = New-Object CheckBox
-        $this.opt_lowercase = [CheckBox]@{
+        $this.UseLowercaseCheckBox = New-Object CheckBox -Property @{
             Text = "lowercase"
             Checked = $false
             Dock = [DockStyle]::Fill
             Padding = 5
         }
-        $this.view.Controls.Add($this.opt_lowercase,0,3)
-        $this.view.SetColumnSpan($this.opt_lowercase,4)
+        $this.view.Controls.Add($this.UseLowercaseCheckBox,0,3)
+        $this.view.SetColumnSpan($this.UseLowercaseCheckBox,4)
 
-        $this.opt_uppercase = New-Object CheckBox
-        $this.opt_uppercase = [CheckBox]@{
+        $this.UseUppercaseCheckBox = New-Object CheckBox -Property @{
             Text = "uppercase"
             Checked = $false
             Dock = [DockStyle]::Fill
             Padding = 5
         }
-        $this.view.Controls.Add($this.opt_uppercase,0,4)
-        $this.view.SetColumnSpan($this.opt_uppercase,4)
+        $this.view.Controls.Add($this.UseUppercaseCheckBox,0,4)
+        $this.view.SetColumnSpan($this.UseUppercaseCheckBox,4)
 
-        $this.opt_numbers = New-Object CheckBox
-        $this.opt_numbers = [CheckBox]@{
+        $this.UseNumbersCheckBox = New-Object CheckBox -Property @{
             Text = "numbers"
             Checked = $false
             Dock = [DockStyle]::Fill
             Padding = 5
         }
-        $this.view.Controls.Add($this.opt_numbers,0,5)
-        $this.view.SetColumnSpan($this.opt_numbers,4)
+        $this.view.Controls.Add($this.UseNumbersCheckBox,0,5)
+        $this.view.SetColumnSpan($this.UseNumbersCheckBox,4)
 
-        $this.opt_symbols = New-Object CheckBox
-        $this.opt_symbols = [CheckBox]@{
+        $this.UseSymbolsCheckBox = New-Object CheckBox -Property @{
             Text = "symbols"
             Checked = $false
             Dock = [DockStyle]::Fill
             Padding = 5
         }
-        $this.view.Controls.Add($this.opt_symbols,0,6)
-        $this.view.SetColumnSpan($this.opt_symbols,4)
+        $this.view.Controls.Add($this.UseSymbolsCheckBox,0,6)
+        $this.view.SetColumnSpan($this.UseSymbolsCheckBox,4)
     }
 }
 
@@ -204,10 +174,14 @@ class PasswdGeneratorView {
 # Main
 # ----------------------------
 function main(){
-    $pwgenView = New-Object PasswdGeneratorView
-    $pwgenView.btn_copy.Add_Click({
-        if( -not [string]::IsNullOrEmpty($pwgenView.passwd.Text)){
-            Set-Clipboard "$($pwgenView.passwd.Text)"
+    $pgFrom = New-Object CustomForm
+    $pgView = New-Object PasswdGeneratorView
+
+    $pgFrom.SetView($pgView.view,300,300)
+
+    $pgView.PasswdCopyButton.Add_Click({
+        if( -not [string]::IsNullOrEmpty($pgView.PasswdTextBox.Text)){
+            Set-Clipboard "$($pgView.PasswdTextBox.Text)"
         }else{
             $iyan = @(
                 "(/ω＼)ｲﾔﾝ♪"
@@ -217,31 +191,30 @@ function main(){
                 "(*‘ω‘ *)ｨｬﾝ"
                 "ヾ(*´∀｀*)ﾉｷｬｯｷｬ"
                 "👁️👄👁️"
-                "👁️👁️⁉`n 👄"
             )
             Set-Clipboard $(Get-Random -InputObject $iyan)
         }
     })
-    $pwgenView.btn_gen.Add_Click({
+    $pgView.PasswdGenerateButton.Add_Click({
         $pattern = ""
 
-        if($pwgenView.opt_lowercase.Checked){
+        if($pgView.UseLowercaseCheckBox.Checked){
             $pattern += "abcdefghijklmnopqrstuvwxyz"
         }
 
-        if($pwgenView.opt_uppercase.Checked){
+        if($pgView.UseUppercaseCheckBox.Checked){
             $pattern += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         }
 
-        if($pwgenView.opt_numbers.Checked){
+        if($pgView.UseNumbersCheckBox.Checked){
             $pattern += "0123456789"
         }
 
-        if($pwgenView.opt_symbols.Checked){
+        if($pgView.UseSymbolsCheckBox.Checked){
             $pattern += "/*-+,!?=()@;:._"
         }
 
-        if($pwgenView.opt_eliminate_similer.Checked){
+        if($pgView.EliminateSimilerCharsCheckBox.Checked){
             if($pattern.Contains("0") -and $pattern.Contains("O")){
                 $pattern = $pattern | foreach {$_ -replace "0",""}
             }
@@ -260,15 +233,13 @@ function main(){
         }
 
         if( -not [string]::IsNullOrEmpty($pattern)){
-            $ret =  -join ((1..$pwgenView.opt_length.Value) | % {Get-Random -input $pattern.ToCharArray()})
-            $pwgenView.passwd.Text = $ret
+            $passwd =  -join ((1..$pgView.PasswdLenghtNumUpDown.Value) | % {Get-Random -input $pattern.ToCharArray()})
+            $pgView.PasswdTextBox.Text = $passwd
         }else{
-            $pwgenView.passwd.Text = ""
+            $pgView.PasswdTextBox.Text = ""
         }
     })
 
-    $frame = New-Object Frame
-    $frame.setView($pwgenView.view,300,300)
-    $frame.ShowDialog()
+    $pgFrom.ShowDialog()
 }
 main
