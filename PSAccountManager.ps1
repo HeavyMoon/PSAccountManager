@@ -559,7 +559,13 @@ class ListView {
         $this.AccountListBox = New-Object ListBox -Property @{
             Sorted = $true
             Dock = [DockStyle]::Fill
+            DrawMode = [DrawMode]::OwnerDrawVariable
         }
+        $this.AccountListBox.Add_MeasureItem({
+             param([System.Object] $Sender, [MeasureItemEventArgs] $e)
+             $e.ItemHeight = $this.Font.Height
+        })
+
         $this.view.Controls.Add($this.AccountListBox,0,1)
         $this.view.SetColumnSpan($this.AccountListBox,2)
 
@@ -750,6 +756,32 @@ function main(){
     })
 
     # Setup List View
+    $listView.AccountListBox.Add_DrawItem({
+        param([System.Object] $Sender, [System.Windows.Forms.DrawItemEventArgs] $e)
+
+        if ($Sender.Items.Count -eq 0) {return}
+
+        $e.DrawBackground()
+        $back_color = [System.Drawing.Color]::White
+        $fore_color = [System.Drawing.Color]::Black
+
+        $item = $accountList.ACDB | Where-Object {$_.label -eq $Sender.Items[$e.Index] }
+        if($PSAMPref.Prefs.EnableExpiredAccountHighlight -and $item.expdate_enabled){
+            $span = (New-TimeSpan -End $item.expdate).Days
+            if($span -le 14){
+                $back_color = [System.Drawing.Color]::Yellow
+                $fore_color = [System.Drawing.Color]::Black
+            }
+            if($span -le 0){
+                $back_color = [System.Drawing.Color]::Red
+                $fore_color = [System.Drawing.Color]::White
+            }
+        }
+
+        [TextRenderer]::DrawText($e.Graphics,$Sender.Items[$e.Index], $e.Font, $e.Bounds, $fore_color, $back_color, [TextFormatFlags]::Default)
+        $e.DrawFocusRectangle()
+    })
+
     $listView.AccountListBox.Add_SelectedIndexChanged({
         if($listView.AccountListBox.SelectedItem){
             $item = $accountList.ACDB | Where-Object {$_.label -eq $listView.AccountListBox.SelectedItem }
