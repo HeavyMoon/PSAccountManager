@@ -806,6 +806,7 @@ function main(){
     })
 
     $listView.PrefButton.Add_Click({
+        $prefView.SetPref($PSAMPref.Prefs)
         $prefForm.ShowDialog()
     })
 
@@ -902,8 +903,6 @@ function main(){
 
     # Setup Pref View
     $prefForm.SetView($prefView.view,450,310)
-    $prefView.SetPref($PSAMPref.Prefs)
-
     $prefView.EnableAESEncryptyonCheckBox.Add_CheckedChanged({
         if($this.Checked){
             $prefView.AESPassPhraseTextBox.Enabled      = $true
@@ -912,7 +911,6 @@ function main(){
             $prefView.AESKeyTextBox.Text                = ""
             $prefView.AESKeyGenerateButton.Enabled      = $true
             $prefView.AESKeyUpdateButton.Enabled        = $true
-            $PSAMPref.Prefs.EnableAESEncryption         = $true
         }else{
             $prefView.AESPassPhraseTextBox.Enabled      = $false
             $prefView.AESPassPhraseTextBox.Text         = ""
@@ -920,11 +918,13 @@ function main(){
             $prefView.AESKeyTextBox.Text                = ""
             $prefView.AESKeyGenerateButton.Enabled      = $false
             $prefView.AESKeyUpdateButton.Enabled        = $false
+
             $PSAMPref.Prefs.EnableAESEncryption         = $false
+            $PSAMPref.Sync()
 
             $accountList.AESKeyBase64                   = [string]::Empty
+            $accountList.Sync()
         }
-        $PSAMPref.Sync()
     })
 
     $prefView.AESKeyGenerateButton.Add_Click({
@@ -940,6 +940,11 @@ function main(){
     $prefView.AESKeyUpdateButton.Add_Click({
         if(-not [string]::IsNullOrEmpty($prefView.AESKeyTextBox.Text)){
             $accountList.AESKeyBase64 = $prefView.AESKeyTextBox.Text
+            $accountList.Sync()
+
+            $PSAMPref.Prefs.EnableAESEncryption = $true
+            $PSAMPref.Sync()
+
             Set-Clipboard $prefView.AESKeyTextBox.Text
             [MessageBox]::Show("AES Key Updated. The key has been saved to your clipboard. Please keep it safe.","!! WARNING !!")
         }
