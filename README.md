@@ -1,11 +1,11 @@
 # PowerSehll Account Manager
 ## PSAccountManager
 
-:warning: This program is probably still buggy. :warning:
+:warning: This program probably still has bugs. If you find a bug, please report it. :warning:
 
 Run `Run_PSAM.bat` to start PSAccountManager.
 In the default configuration, account data is encrypted with DPAPI.
-You can choose between DPAPI and AES as the encryption method.
+You can choose between DPAPI and AES or plain text as the encryption method.
 
 ![PSAM_home](./image/PSAM_home.PNG "PSAccountManager home")  
 ![PSAM_list](./image/PSAM_list.PNG "PSAccountManager list")  

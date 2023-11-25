@@ -21,9 +21,185 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
+
+<#
+    .SYNOPSIS
+    PowerShell-based Account Manager
+
+    .DESCRIPTION
+    This is a PowerShell-based Account Manager.
+    Account data is encrypted by DPAPI(default) or AES.
+    Requires $PSVersion 5.1 or higher.
+
+    .LINK
+    https://github.com/HeavyMoon/PSAccountManager
+#>
+
 using namespace System.Windows.Forms
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+
+
+class Preferences{
+    [string]    $PrefsFilePath
+    [hashtable] $Prefs
+    
+    Preferences(){
+        $this.PrefsFilePath = "${PSScriptRoot}\prefs"
+        $this.Prefs = @{
+            "ACDBFilePath"            = "${PSScriptRoot}\acdb.dat"
+            "EncryptionType"          = "DPAPI"   # DPAPI(default), AES, RAW
+            "HighlightExpiredAccount" = $true
+        }
+        
+        if( (Test-Path -Path $this.PrefsFilePath -PathType Leaf) -and (-not [string]::IsNullOrEmpty((Get-Content $this.PrefsFilePath))) ){
+            (Get-Content $this.PrefsFilePath | ConvertFrom-Json).psobject.properties | ForEach-Object { $this.Prefs[$_.Name] = $_.Value }
+        }else{
+            New-Item -Path $this.PrefsFilePath -ItemType File -Force
+            $this.Sync()
+        }
+    }
+
+    [void] Sync(){
+        ConvertTo-Json $this.Prefs | Out-File -FilePath $this.PrefsFilePath -Encoding utf8
+    }
+}
+
+class AccountDB {
+    [System.Collections.ArrayList] $ACDB
+    [string]                       $ACDBFilePath
+    [string]                       $EncryptionType
+    [byte[]]                       $_AESKey
+
+    AccountDB([string]$ACDBFilePath,[string]$EncryptionType){
+        $this.ACDB = [System.Collections.ArrayList]@{}
+        $this.ACDBFilePath = $ACDBFilePath
+        $this.EncryptionType = $EncryptionType
+        $this._AESKey = [byte[]]@()
+    }
+
+    [int]Load(){
+        switch ($this.EncryptionType) {
+            "DPAPI" {
+                $load_encrypted_data_bytes = Get-Content -Path $this.ACDBFilePath -Encoding Byte
+                if ($load_encrypted_data_bytes -ne $null){
+                    $load_encrypted_data = [System.Text.Encoding]::UTF8.GetString($load_encrypted_data_bytes)
+                    $load_ss = ConvertTo-SecureString -String $load_encrypted_data
+                    $load_bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($load_ss)
+                    $load_bytes_string = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($load_bstr)
+                    $load_bytes_array = $load_bytes_string -split '(.{2})' | Where-Object {$_} | ForEach-Object {[byte]([Convert]::ToInt16($_,16))}
+
+                    $csv = [System.Text.Encoding]::UTF8.GetString($load_bytes_array)
+                    $load_data = $csv -replace "`" `"","`"`r`n`"" | ConvertFrom-Csv
+
+                    if ($load_data -ne $null){
+                        try {
+                            $this.ACDB = $load_data
+                        } catch {
+                            $this.ACDB.Add($load_data)
+                        }
+                        $this.ACDB | ForEach-Object {
+                            if($_.expdate_enabled.GetType().Name -eq "string"){
+                                $_.expdate_enabled = [System.Convert]::ToBoolean($_.expdate_enabled)
+                            }
+                        }
+
+                    }
+                }
+             }
+            "AES" {
+                $load_encrypted_data_bytes = Get-Content -Path $this.ACDBFilePath -Encoding Byte
+                $load_encrypted_data = [System.Text.Encoding]::UTF8.GetString($load_encrypted_data_bytes)
+                $load_ss = ConvertTo-SecureString -String $load_encrypted_data -Key $this._AESKey
+                $load_bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($load_ss)
+                $load_bytes_string = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($load_bstr)
+                $load_bytes_array = $load_bytes_string -split '(.{2})' | Where-Object {$_} | ForEach-Object {[byte]([Convert]::ToInt16($_,16))}
+
+                $csv = [System.Text.Encoding]::UTF8.GetString($load_bytes_array)
+                $load_data = $csv -replace "`" `"","`"`r`n`"" | ConvertFrom-Csv
+
+                if ($load_data -ne $null){
+                    try {
+                        $this.ACDB = $load_data
+                    } catch {
+                        $this.ACDB.Add($load_data)
+                    }
+                    $this.ACDB | ForEach-Object {
+                        if($_.expdate_enabled.GetType().Name -eq "string"){
+                            $_.expdate_enabled = [System.Convert]::ToBoolean($_.expdate_enabled)
+                        }
+                    }
+
+                }
+            }
+            "RAW" {
+                $tmp = Import-Csv $this.ACDBFilePath
+                if ($tmp -ne $null){
+                    try {
+                        $this.ACDB = [System.Collections.ArrayList]$tmp
+                    } catch {
+                        $this.ACDB.Add($tmp)
+                    }
+                    $this.ACDB | ForEach-Object {
+                        if($_.expdate_enabled.GetType().Name -eq "string"){
+                            $_.expdate_enabled = [System.Convert]::ToBoolean($_.expdate_enabled)
+                        }
+                    }
+                }
+            }
+            Default {
+            }
+        }
+        return 0
+    }
+
+    [void] Sync(){
+        $this.ACDB = $this.ACDB | Sort-Object label
+        switch ($this.EncryptionType) {
+            "DPAPI" {
+                $out_bytes_array  = [System.Text.Encoding]::UTF8.GetBytes(($this.ACDB | ConvertTo-Csv -NoTypeInformation))
+                $out_hex_string = [System.BitConverter]::ToString($out_bytes_array) -replace '-',''
+
+                $out_ss = $out_hex_string | ConvertTo-SecureString -AsPlainText -Force
+                $out_encrypted = ConvertFrom-SecureString -SecureString $out_ss
+                $out_encrypted_data = [System.Text.Encoding]::UTF8.GetBytes($out_encrypted)
+                $out_encrypted_data | Set-Content -Path $this.ACDBFilePath -Encoding Byte
+             }
+            "AES" {
+                $out_bytes_array  = [System.Text.Encoding]::UTF8.GetBytes(($this.ACDB | ConvertTo-Csv -NoTypeInformation))
+                $out_hex_string = [System.BitConverter]::ToString($out_bytes_array) -replace '-',''
+
+                $out_ss = $out_hex_string | ConvertTo-SecureString -AsPlainText -Force
+                $out_encrypted = ConvertFrom-SecureString -SecureString $out_ss -Key $this._AESKey
+                $out_encrypted_data = [System.Text.Encoding]::UTF8.GetBytes($out_encrypted)
+                $out_encrypted_data | Set-Content -Path $this.ACDBFilePath -Encoding Byte
+            }
+            "RAW" {
+                $this.ACDB | Export-Csv -Path $this.ACDBFilePath -NoTypeInformation -Encoding UTF8
+            }
+            Default {
+            }
+        }
+    }
+
+    # SHA256 HASH
+    [void] setAESKey([string]$s){
+        $sha256 = New-Object System.Security.Cryptography.SHA256Managed
+        $utf8   = New-Object System.Text.UTF8Encoding
+        $this._AESKey = $sha256.ComputeHash( $utf8.GetBytes($s) )
+    }
+
+    [void] RemoveByLabel([string]$label){
+        $this.ACDB.Remove($($this.ACDB.Where({$_.label -eq $label})))
+        $this.Sync()
+    }
+
+    [void] Add([PSCustomObject]$item){
+        $this.ACDB.Add($item)
+        $this.Sync()
+    }
+}
+
 
 # FIXME: 未入力状態でText値をEmptyにできない。
 #        AESパスフレーズ生成時のデフォルト値が$PlaceHolderになってしまう。
@@ -96,171 +272,13 @@ class CustomForm:Form {
     }
 }
 
-class Preferences{
-    [string]    $PrefsFile
-    [hashtable] $Prefs
-
-    Preferences(){
-        $this.PrefsFile = "${PSScriptRoot}\prefs"
-        $this.Prefs = @{
-            "ACDBFile"                      = "${PSScriptRoot}\acdb.dat"
-            "EnableAESEncryption"           = $false
-            "EnableExpiredAccountHighlight" = $false
-        }
-        
-        if( (Test-Path -Path $this.PrefsFile -PathType Leaf) -and (-not [string]::IsNullOrEmpty((Get-Content $this.PrefsFile))) ){
-            (Get-Content $this.PrefsFile | ConvertFrom-Json).psobject.properties | Foreach { $this.Prefs[$_.Name] = $_.Value }
-        }else{
-            New-Item -Path $this.PrefsFile -ItemType File -Force
-            $this.Sync()
-        }
-    }
-
-    [void] Sync(){
-        ConvertTo-Json $this.Prefs | Out-File -FilePath $this.PrefsFile -Encoding utf8
-    }
-}
-
-class AccountList {
-    [string]                       $ACDBFile
-    [System.Collections.ArrayList] $ACDB
-    [System.IO.FileStream]         $ACDBStream
-    [string]                       $AESKeyBase64
-
-    AccountList(){
-        $this.ACDB = New-Object System.Collections.ArrayList
-    }
-
-    [int] Open([string]$ACDBFile){
-        $this.ACDBFile = $ACDBFile
-        if($this.ACDBStream -eq $null){
-            try{
-                $this.ACDBStream = [System.IO.File]::Open($this.ACDBFile,[System.IO.FileMode]::OpenOrCreate,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
-                if($?){
-                    $stream_read = [System.IO.StreamReader]::new($this.ACDBStream)
-                    $acdb_encrypted = $stream_read.ReadToEnd()
-                    if(-not [string]::IsNullOrEmpty($acdb_encrypted)){
-                        $acdb_ss   = ConvertTo-SecureString -String $acdb_encrypted
-                        $acdb_bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($acdb_ss)
-                        $acdb_tmp  = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($acdb_bstr) | ConvertFrom-Json
-
-                        # Convert PSObject to HashTable
-                        $acdb_tmp | ForEach-Object {
-                            $item = @{
-	                            "label"           = $_.label
-	                            "id"              = $_.id
-	                            "pw"              = $_.pw
-	                            "expdate_enabled" = $_.expdate_enabled
-	                            "expdate"         = $_.expdate
-	                            "note"            = $_.note
-                            }
-                            $this.Add($item)
-                        }
-                    }
-                }
-            }catch{
-                [MessageBox]::Show("acdb is locked.","!! WARNING !!")
-                return 1
-            }
-        }else{
-            [MessageBox]::Show("file open failed!","!! WARNING !!")
-            return 1
-        }
-        return 0
-    }
-    [int] Open([string]$ACDBFile, [string]$AESKeyBase64){
-        $this.ACDBFile = $ACDBFile
-        $this.AESKeyBase64 = $AESKeyBase64
-        if($this.ACDBStream -eq $null){
-            try{
-                $this.ACDBStream = [System.IO.File]::Open($this.ACDBFile,[System.IO.FileMode]::OpenOrCreate,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
-                if($?){
-                    $stream_read = [System.IO.StreamReader]::new($this.ACDBStream)
-                    $acdb_encrypted = $stream_read.ReadToEnd()
-                    if(-not [string]::IsNullOrEmpty($acdb_encrypted)){
-                        $acdb_ss   = ConvertTo-SecureString -String $acdb_encrypted -Key ([System.Convert]::FromBase64String($this.AESKeyBase64))
-                        $acdb_bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($acdb_ss)
-                        $acdb_tmp  = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($acdb_bstr) | ConvertFrom-Json
-
-                        # Convert PSObject to HashTable
-                        $acdb_tmp | ForEach-Object {
-                            $item = @{
-	                            "label"           = $_.label
-	                            "id"              = $_.id
-	                            "pw"              = $_.pw
-	                            "expdate_enabled" = $_.expdate_enabled
-	                            "expdate"         = $_.expdate
-	                            "note"            = $_.note
-                            }
-                            $this.Load($item)
-                        }
-                    }
-                }
-            }catch{
-                [MessageBox]::Show("acdb is locked.","!! WARNING !!")
-                return 1
-            }
-        }else{
-            [MessageBox]::Show("file open failed!","!! WARNING !!")
-            return 1
-        }
-        return 0
-    }
-
-    [void] Sync(){
-        $stream_write = [System.IO.StreamWriter]::new($this.ACDBStream)
-        if($this.ACDB){
-            if([string]::IsNullOrEmpty($this.AESKeyBase64)){
-                # DPAPI
-                $acdb_ss = $this.ACDB | ConvertTo-Json | ConvertTo-SecureString -AsPlainText -Force
-                $acdb_encryped = ConvertFrom-SecureString -SecureString $acdb_ss
-            }else{
-                # AES
-                $acdb_ss = $this.ACDB | ConvertTo-Json | ConvertTo-SecureString -AsPlainText -Force
-                $acdb_encryped = ConvertFrom-SecureString -SecureString $acdb_ss -Key ([System.Convert]::FromBase64String($this.AESKeyBase64))
-            }
-            $stream_write.BaseStream.SetLength(0)
-            $stream_write.Write($acdb_encryped)
-            $stream_write.Flush()
-        }else{
-            $stream_write.BaseStream.SetLength(0)
-            $stream_write.Flush()
-        }
-    }
-    [void] Close(){
-        if($this.ACDBStream.Handle -ne $null){
-            $this.ACDBStream.Close()
-        }
-    }
-
-    [void] RemoveByLabel([string]$label){
-        if(-not [string]::IsNullOrEmpty($label)){
-            $this.ACDB.Remove($($this.ACDB | Where-Object {$_.label -eq $label}))
-            $this.Sync()
-        }
-    }
-
-    [void] Add([hashtable]$item){
-        if($item){
-            $this.ACDB.Add($item)
-            $this.Sync()
-        }
-    }
-    [void] Load([hashtable]$item){
-        if($item){
-            $this.ACDB.Add($item)
-        }
-    }
-
-}
-
-class HomeView {
+class EntranceView {
     [TableLayoutPanel] $view
     [Label]            $TitleLabel
-    [TextBox]          $AESKeyTextBox
+    [TextBox]          $PasswdBox
     [Button]           $AcceptButton
 
-    HomeView(){
+    EntranceView(){
         $this.view = New-Object TableLayoutPanel
         $this.view = [TableLayoutPanel]@{
             RowCount = 2
@@ -281,13 +299,13 @@ class HomeView {
         $this.view.Controls.Add($this.TitleLabel,0,0)
         $this.view.SetColumnSpan($this.TitleLabel,2)
 
-        $this.AESKeyTextBox = New-Object TextBox -Property @{
+        $this.PasswdBox = New-Object TextBox -Property @{
             PasswordChar  = "*"
             Multiline     = $false
-            AcceptsReturn = $false
+            AcceptsReturn = $true
             Dock          = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($this.AESKeyTextBox,0,1)
+        $this.view.Controls.Add($this.PasswdBox,0,1)
 
         $this.AcceptButton = New-Object Button -Property @{
             Text = "OK"
@@ -342,24 +360,6 @@ class ItemView {
             Text = "COPY"
             Dock = [DockStyle]::Fill
         }
-        # FIXME: Add_Clickのスクリプトブロック内の$thisはButtonを参照しているため、ItemViewのほかのメンバを参照できない。
-        #        このクラス内で完結できるイベントはクラス内に閉じ込めたいが、実装手段不明。クラスやめたほうがいいのか？
-        #$this.IDCopyButton.Add_Click({
-        #    if( -not [string]::IsNullOrEmpty($this.IDTextBox.Text)){
-        #        Set-Clipboard $this.IDTextBox.Text
-        #    }else{
-        #        $muri = @(
-        #            "無理 ( ´・∀・)┌"
-        #            "ヾﾉ・∀・｀)ﾑﾘﾑﾘ"
-        #            "ヾﾉ>д<｡) ムリムリ"
-        #            "ムリ！d(｀・д´・ )ｷｯﾊﾟﾘ"
-        #            "ﾑ───(乂・д・´)───ﾘ！"
-        #            "ﾑﾘ(ﾟﾛﾟ)ﾑﾘ(ﾟﾛﾟ)ﾑﾘ(ﾟﾛﾟ)ﾑﾘ(ﾟﾛﾟ)ﾑﾘ(ﾟﾛﾟ)ﾑﾘ(ﾟﾛﾟ)ﾑﾘ"
-        #            "━─━─━─(乂｀д´)できま線─━─━─━"
-        #        )
-        #        Set-Clipboard $(Get-Random -InputObject $muri)
-        #    }
-        #})
         $this.view.Controls.Add($this.IDCopyButton,1,1)
         
         $this.PasswdTextBox = New-Object TextBox -Property @{
@@ -367,34 +367,12 @@ class ItemView {
             PasswordChar = "*"
             Dock         = [DockStyle]::Fill
         }
-        # FIXME: Add_TextChangedのスクリプトブロック内の$thisはTextBoxを参照しているため、ItemViewのほかのメンバを参照できない。
-        #        このクラス内で完結できるイベントはクラス内に閉じ込めたいが、実装手段不明。クラスやめたほうがいいのか？
-        #$this.PasswdTextBox.Add_TextChanged({
-        #    $this.PasswdCheck()
-        #})
         $this.view.Controls.Add($this.PasswdTextBox,0,2)
 
         $this.PasswdCopyButton = New-Object Button -Property @{
             Text = "COPY"
             Dock = [DockStyle]::Fill
         }
-        # FIXME: Add_Clickのスクリプトブロック内の$thisはButtonを参照しているため、ItemViewのほかのメンバを参照できない。
-        #        このクラス内で完結できるイベントはクラス内に閉じ込めたいが、実装手段不明。クラスやめたほうがいいのか？
-        #$this.PasswdCopyButton.Add_Click({
-        #    if( -not [string]::IsNullOrEmpty($this.PasswdTextBox.Text)){
-        #        Set-Clipboard $this.PasswdTextBox.Text
-        #    }else{
-        #        $yada = @(
-        #            "(´・д・｀)ﾔﾀﾞ"
-        #            "ﾔﾀﾞ───(ﾉ)´д｀(ヽ)───!!"
-        #            "ﾔﾀﾞﾔﾀﾞc(｀Д´と⌒ｃ)つ彡ｼﾞﾀﾊﾞﾀ"
-        #            "ヾ(≧Д≦)ﾉ))ﾔﾀﾞﾔﾀﾞ"
-        #            "(´；д；｀)ﾔﾀﾞ"
-        #            "(ｏ'ﾉ3')ﾋﾐﾂﾀﾞﾖ"
-        #        )
-        #        Set-Clipboard $(Get-Random -InputObject $yada)
-        #    }
-        #})
         $this.view.Controls.Add($this.PasswdCopyButton,1,2)
 
         $this.PasswdCheckTextBox = New-Object TextBox -Property @{
@@ -402,11 +380,6 @@ class ItemView {
             PasswordChar = "*"
             Dock         = [DockStyle]::Fill
         }
-        # FIXME: Add_TextChangedのスクリプトブロック内の$thisはTextBoxを参照しているため、ItemViewのほかのメンバを参照できない。
-        #        このクラス内で完結できるイベントはクラス内に閉じ込めたいが、実装手段不明。クラスやめたほうがいいのか？
-        #$this.PasswdCheckTextBox.Add_TextChanged({
-        #    $this.PasswdCheck()
-        #})
         $this.view.Controls.Add($this.PasswdCheckTextBox,0,3)
         
         $this.PasswdStatusLabel = New-Object Label -Property @{
@@ -427,15 +400,6 @@ class ItemView {
         $this.ExpirationCheckBox = New-Object CheckBox -Property @{
             AutoCheck = $true
         }
-        # FIXME: Add_CheckStateChangedのスクリプトブロック内の$thisはCheckBoxを参照しているため、ItemViewのほかのメンバを参照できない。
-        #        このクラス内で完結できるイベントはクラス内に閉じ込めたいが、実装手段不明。クラスやめたほうがいいのか？
-        #$this.ExpirationCheckBox.Add_CheckStateChanged({
-        #    if($this.ExpirationCheckBox.Checked){
-        #        $this.ExpirationDateTimePicker.Enabled = $true
-        #    }else{
-        #        $this.ExpirationDateTimePicker.Enabled = $false
-        #    }
-        #})
         $this.view.Controls.Add($this.ExpirationCheckBox,1,4)
         
         $this.NoteTextBox = New-Object TextBox -Property @{
@@ -454,18 +418,6 @@ class ItemView {
         }
         $this.view.Controls.Add($this.UpdateButton,0,6)
         $this.view.SetColumnSpan($this.UpdateButton,2)
-    }
-
-    # FIXME: クラス内で呼び出せる方法が分かったらhiddenに変更する。
-    #hidden PasswdCheck(){
-    [void] PasswdCheck(){
-        if($this.PasswdTextBox.Text -eq $this.PasswdCheckTextBox.Text){
-            $this.PasswdStatusLabel.Text  = "OK"
-            $this.UpdateButton.Enabled = $true
-        }else{
-            $this.ExpirationCheckBox.Text = "NG"
-            $this.UpdateButton.Enabled = $false
-        }
     }
 
     [void] setItem([hashtable]$item){
@@ -559,6 +511,8 @@ class ListView {
         $this.AccountListBox = New-Object ListBox -Property @{
             Sorted = $true
             Dock = [DockStyle]::Fill
+            #DrawMode = [DrawMode]::Normal
+            #DrawMode = [DrawMode]::OwnerDrawFixed
             DrawMode = [DrawMode]::OwnerDrawVariable
         }
         $this.AccountListBox.Add_MeasureItem({
@@ -589,31 +543,26 @@ class ListView {
 
 class PrefView {
     [TableLayoutPanel] $view
-    [CheckBox]         $EnableAESEncryptyonCheckBox
-    [CustomTextBox]    $AESPassPhraseTextBox
-    [Button]           $AESKeyGenerateButton
-    [TextBox]          $AESKeyTextBox
-    [Button]           $AESKeyUpdateButton
-    [CheckBox]         $EnableExpiredAccountHighlightCheckbox
 
     [GroupBox]         $EncryptionMethodGroupBox
-    [RadioButton]      $UseDPAPIEncryption
-    [RadioButton]      $UseAESEncryption
-    [RadioButton]      $UsePlainText
+    [RadioButton]      $DPAPIEncryption
+    [RadioButton]      $AESEncryption
+    [RadioButton]      $PlainText
+    [CustomTextBox]    $AESPassPhraseTextBox
+    [Button]           $AESKeyApplyButton
+    [CheckBox]         $HighlightExpiredAccountCheckbox
 
     PrefView(){
         $this.view = New-Object TableLayoutPanel -Property @{
-            RowCount = 6
+            RowCount = 4
             ColumnCount = 2
             Dock = [DockStyle]::Fill
             #CellBorderStyle = [BorderStyle]::FixedSingle
         }
         $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
+        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,110)))
         $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
         $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
-        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
-        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
-        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Percent,100)))
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Percent,100)))
         $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Absolute,100)))
         
@@ -625,14 +574,34 @@ class PrefView {
         $this.view.Controls.Add($title,0,0)
         $this.view.SetColumnSpan($title,2)
 
-        $this.EnableAESEncryptyonCheckBox= New-Object CheckBox -Property @{
-            Text = "Enable AES Encryption (default DPAPI)"
+        $this.DPAPIEncryption = New-Object RadioButton -Property @{
+            Text = "DPAPI"
+            Location = "10,30"
+            AutoSize = $true
+        }
+        $this.AESEncryption = New-Object RadioButton -Property @{
+            Text = "AES"
+            Location = "10,50"
+            AutoSize = $true
+        }
+        $this.PlainText = New-Object RadioButton -Property @{
+            Text = "Plain Text"
+            Location = "10,70"
+            AutoSize = $true
+        }
+        $this.EncryptionMethodGroupBox = New-Object GroupBox -Property @{
+            Text = "Encryption Method"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($this.EnableAESEncryptyonCheckBox,0,1)
-        $this.view.SetColumnSpan($this.EnableAESEncryptyonCheckBox,2)
+        $this.EncryptionMethodGroupBox.Controls.Add($this.DPAPIEncryption)
+        $this.EncryptionMethodGroupBox.Controls.Add($this.AESEncryption)
+        $this.EncryptionMethodGroupBox.Controls.Add($this.PlainText)
+        $this.view.Controls.Add($this.EncryptionMethodGroupBox,0,1)
+        $this.view.SetColumnSpan($this.EncryptionMethodGroupBox,2)
 
         $this.AESPassPhraseTextBox = New-Object CustomTextBox -Property @{
+            Multiline     = $false
+            AcceptsReturn = $true
             PlaceHolder = "PassPhrase"
             Text = $this.PlaceHolder
             Font = New-Object System.Drawing.Font("MS Gothic", 12)
@@ -641,77 +610,44 @@ class PrefView {
         }
         $this.view.Controls.Add($this.AESPassPhraseTextBox,0,2)
 
-        $this.AESKeyGenerateButton = New-Object Button -Property @{
-            Text = "GEN"
+        $this.AESKeyApplyButton = New-Object Button -Property @{
+            Text = "APPLY"
             Dock = [DockStyle]::Fill
             Enabled = $false
         }
-        $this.view.Controls.Add($this.AESKeyGenerateButton,1,2)
+        $this.view.Controls.Add($this.AESKeyApplyButton,1,2)
 
-        $this.AESKeyTextBox = New-Object TextBox -Property @{
-            ReadOnly = $true
-            Font = New-Object System.Drawing.Font("MS Gothic", 12)
-            Dock = [DockStyle]::Fill
-            Enabled = $false
-        }
-        $this.view.Controls.Add($this.AESKeyTextBox,0,3)
-
-        $this.AESKeyUpdateButton = New-Object Button -Property @{
-            Text = "UPDATE"
-            Dock = [DockStyle]::Fill
-            Enabled = $false
-        }
-        $this.view.Controls.Add($this.AESKeyUpdateButton,1,3)
-
-        $this.EnableExpiredAccountHighlightCheckbox = New-Object CheckBox -Property @{
-            Text = "Enable Expired Account Highlight  (Experimental)"
+        $this.HighlightExpiredAccountCheckbox = New-Object CheckBox -Property @{
+            Text = "Enable Expired Account Highlight"
             AutoSize = $true
         }
-        $this.view.Controls.Add($this.EnableExpiredAccountHighlightCheckbox,0,4)
-        $this.view.SetColumnSpan($this.EnableExpiredAccountHighlightCheckbox,2)
-
-        $this.UseDPAPIEncryption = New-Object RadioButton -Property @{
-            Text = 'Use DPAPI Encryption'
-            Location = "10,30"
-            AutoSize = $true
-        }
-        $this.UseAESEncryption = New-Object RadioButton -Property @{
-            Text = 'Use AES Encryption'
-            Location = "10,50"
-            AutoSize = $true
-        }
-        $this.UsePlainText = New-Object RadioButton -Property @{
-            Text = 'Use Plain Text'
-            Location = "10,70"
-            AutoSize = $true
-        }
-        $this.EncryptionMethodGroupBox = New-Object GroupBox -Property @{
-            Text = 'Encryption Method  (Experimental)'
-            Dock = [DockStyle]::Fill
-        }
-        $this.EncryptionMethodGroupBox.Controls.Add($this.UseDPAPIEncryption)
-        $this.EncryptionMethodGroupBox.Controls.Add($this.UseAESEncryption)
-        $this.EncryptionMethodGroupBox.Controls.Add($this.UsePlainText)
-        $this.view.Controls.Add($this.EncryptionMethodGroupBox,0,5)
-        $this.view.SetColumnSpan($this.EncryptionMethodGroupBox,2)
+        $this.view.Controls.Add($this.HighlightExpiredAccountCheckbox,0,3)
+        $this.view.SetColumnSpan($this.HighlightExpiredAccountCheckbox,2)
     }
 
     [void] SetPref([hashtable]$prefs){
-        $this.EnableAESEncryptyonCheckBox.Checked = $prefs.EnableAESEncryption
-        if($this.EnableAESEncryptyonCheckBox.Checked){
-            $this.AESPassPhraseTextBox.Enabled = $true
-            $this.AESPassPhraseTextBox.SetPlaceHolder()
-            $this.AESKeyGenerateButton.Enabled = $true
-            $this.AESKeyTextBox.Enabled        = $true
-            $this.AESKeyUpdateButton.Enabled   = $true
-        }else{
-            $this.AESPassPhraseTextBox.Enabled = $false
-            $this.AESKeyGenerateButton.Enabled = $false
-            $this.AESKeyTextBox.Enabled        = $false
-            $this.AESKeyUpdateButton.Enabled   = $false
-        }
+        $this.AESPassPhraseTextBox.Enabled = $false
+        $this.AESKeyApplyButton.Enabled    = $false
 
-        $this.EnableExpiredAccountHighlightCheckbox.Checked = $prefs.EnableExpiredAccountHighlight
+        switch($prefs.EncryptionType){
+            "DPAPI" {
+                $this.DPAPIEncryption.Checked = $true
+            }
+            "AES" {
+                $this.AESEncryption.Checked = $true
+                $this.AESPassPhraseTextBox.Enabled = $true
+                $this.AESKeyApplyButton.Enabled   = $true
+                $this.AESPassPhraseTextBox.SetPlaceHolder()
+            }
+            "RAW" {
+                $this.PlainText.Checked = $true
+            }
+            Default {
+                $this.AESPassPhraseTextBox.Enabled = $false
+                $this.AESKeyApplyButton.Enabled   = $false
+            }
+        }
+        $this.HighlightExpiredAccountCheckbox.Checked = $prefs.HighlightExpiredAccount
     }
 }
 
@@ -719,43 +655,45 @@ class PrefView {
 # Main
 # ----------------------------
 function main(){
-    $accountList = New-Object AccountList
-    $PSAMPref    = New-Object Preferences
+    $PSAMPref = New-Object Preferences
+    $acdb     = New-Object AccountDB -ArgumentList $PSAMPref.Prefs.ACDBFilePath,$PSAMPref.Prefs.EncryptionType
 
-    $mainForm = New-Object CustomForm
-    $homeView = New-Object HomeView
-    $listView = New-Object ListView
+    $mainForm     = New-Object CustomForm
+    $entranceView = New-Object EntranceView
+    $listView     = New-Object ListView
 
     $prefForm = New-Object CustomForm
     $prefView = New-Object PrefView
 
-    # Setup Home View
-    $mainForm.SetView($homeView.view,300,110)
-    $mainForm.AcceptButton = $homeView.AcceptButton
+    # Entrance
+    $mainForm.SetView($entranceView.view,300,110)
+    $mainForm.AcceptButton = $entranceView.AcceptButton
 
-    if($PSAMPref.Prefs.EnableAESEncryption -eq $true){
-        $homeView.TitleLabel.Text      = "AES MODE"
-        $homeView.AESKeyTextBox.Enabled = $true
-    }else{
-        $homeView.TitleLabel.Text      = "DPAPI MODE"
-        $homeView.AESKeyTextBox.Enabled = $false
+    $entranceView.TitleLabel.Text = $PSAMPref.Prefs.EncryptionType
+    switch ($PSAMPref.Prefs.EncryptionType) {
+        "AES" {
+            $entranceView.PasswdBox.Enabled = $true
+        }
+        Default {
+            $entranceView.PasswdBox.Enabled = $false
+        }
     }
 
-    $homeView.AcceptButton.Add_Click({
-        if($PSAMPref.Prefs.EnableAESEncryption -eq $true){
-            $ret = $accountList.Open($PSAMPref.Prefs.ACDBFile, $homeView.AESKeyTextBox.Text)
-        }else{
-            $ret = $accountList.Open($PSAMPref.Prefs.ACDBFile)
+    $entranceView.AcceptButton.Add_Click({
+        if ($PSAMPref.Prefs.EncryptionType -eq "AES") {
+            $acdb.setAESKey($entranceView.PasswdBox.Text)
         }
+
+        $ret = $acdb.Load()
         if ($ret -eq 0){
-            $accountList.ACDB | ForEach-Object {$listView.AddLabel($_.label)}
+            $acdb.ACDB | ForEach-Object {$listView.AddLabel($_.label)}
             $mainForm.ClearView()
             $mainForm.AcceptButton = $null
             $mainForm.SetView($listView.view,380,350)
         }
     })
 
-    # Setup List View
+    # AccountManager
     $listView.AccountListBox.Add_DrawItem({
         param([System.Object] $Sender, [System.Windows.Forms.DrawItemEventArgs] $e)
 
@@ -765,8 +703,8 @@ function main(){
         $back_color = [System.Drawing.Color]::White
         $fore_color = [System.Drawing.Color]::Black
 
-        $item = $accountList.ACDB | Where-Object {$_.label -eq $Sender.Items[$e.Index] }
-        if($PSAMPref.Prefs.EnableExpiredAccountHighlight -and $item.expdate_enabled){
+        $item = $acdb.ACDB | Where-Object {$_.label -eq $Sender.Items[$e.Index] }
+        if($PSAMPref.Prefs.HighlightExpiredAccount -and $item.expdate_enabled){
             $span = (New-TimeSpan -End $item.expdate).Days
             if($span -le 14){
                 $back_color = [System.Drawing.Color]::Yellow
@@ -784,7 +722,12 @@ function main(){
 
     $listView.AccountListBox.Add_SelectedIndexChanged({
         if($listView.AccountListBox.SelectedItem){
-            $item = $accountList.ACDB | Where-Object {$_.label -eq $listView.AccountListBox.SelectedItem }
+            $tmp_psobj = $acdb.ACDB | Where-Object {$_.label -eq $listView.AccountListBox.SelectedItem }
+            $item = @{}
+            $tmp_psobj.psobject.properties.name | ForEach-Object {
+                $item[$_] = $tmp_psobj.$_
+            }
+
             $listView.itemView.setItem($item)
             $listView.DeleteButton.Enabled = $true
         }else{
@@ -795,7 +738,7 @@ function main(){
 
     $listView.DeleteButton.Add_Click({
         if(-not[string]::IsNullOrEmpty($listView.AccountListBox.SelectedItem)){
-            $accountList.RemoveByLabel($listView.AccountListBox.SelectedItem)
+            $acdb.RemoveByLabel($listView.AccountListBox.SelectedItem)
             $listView.RemoveLabel($listView.AccountListBox.SelectedItem)
             $listView.itemView.Reset()
         }        
@@ -840,7 +783,7 @@ function main(){
 
     $listView.itemView.UpdateButton.Add_Click({
         if($listView.itemView.PasswdStatusLabel.Text -eq "OK"){
-            $item = @{
+            $item = [PSCustomObject]@{
 	            "label"           = $listView.itemView.AccountLabel.Text
 	            "id"              = $listView.itemView.IDTextBox.Text
 	            "pw"              = $listView.itemView.PasswdTextBox.Text
@@ -849,9 +792,9 @@ function main(){
 	            "note"            = $listView.itemView.NoteTextBox.Text
             }
 
-            if($accountList.ACDB | Where-Object {$_.label -eq $item.label }){
+            if($acdb.ACDB | Where-Object {$_.label -eq $item.label }){
                 # update current item
-                $accountList.ACDB | Where-Object {$_.label -eq $item.label } | ForEach-Object {
+                $acdb.ACDB | Where-Object {$_.label -eq $item.label } | ForEach-Object {
                     $_.label           = $item.label
                     $_.id              = $item.id
                     $_.pw              = $item.pw
@@ -859,10 +802,10 @@ function main(){
                     $_.expdate         = $item.expdate
                     $_.note            = $item.note
                 }
-                $accountList.Sync()
+                $acdb.Sync()
             }else{
                 # add new item
-                $accountList.Add($item)
+                $acdb.Add($item)
                 $listView.AddLabel($item.label)
             }
         }
@@ -901,66 +844,57 @@ function main(){
         }
     })
 
-    # Setup Pref View
-    $prefForm.SetView($prefView.view,450,310)
-    $prefView.EnableAESEncryptyonCheckBox.Add_CheckedChanged({
-        if($this.Checked){
-            $prefView.AESPassPhraseTextBox.Enabled      = $true
-            $prefView.AESPassPhraseTextBox.SetPlaceHolder()
-            $prefView.AESKeyTextBox.Enabled             = $true
-            $prefView.AESKeyTextBox.Text                = ""
-            $prefView.AESKeyGenerateButton.Enabled      = $true
-            $prefView.AESKeyUpdateButton.Enabled        = $true
-        }else{
-            $prefView.AESPassPhraseTextBox.Enabled      = $false
-            $prefView.AESPassPhraseTextBox.Text         = ""
-            $prefView.AESKeyTextBox.Enabled             = $false
-            $prefView.AESKeyTextBox.Text                = ""
-            $prefView.AESKeyGenerateButton.Enabled      = $false
-            $prefView.AESKeyUpdateButton.Enabled        = $false
+    # Preferences
+    $prefForm.SetView($prefView.view,450,250)
 
-            $PSAMPref.Prefs.EnableAESEncryption         = $false
-            $PSAMPref.Sync()
-
-            $accountList.AESKeyBase64                   = [string]::Empty
-            $accountList.Sync()
+    $prefView.DPAPIEncryption.Add_CheckedChanged({
+        if($prefView.DPAPIEncryption.Checked){
+            $PSAMPref.Prefs.EncryptionType = "DPAPI"
+            $acdb.EncryptionType = $PSAMPref.Prefs.EncryptionType
+            $acdb.Sync()
         }
     })
 
-    $prefView.AESKeyGenerateButton.Add_Click({
+    $prefView.AESEncryption.Add_CheckedChanged({
+        if($prefView.AESEncryption.Checked){
+            $PSAMPref.Prefs.EncryptionType = "AES"
+            $acdb.EncryptionType = $PSAMPref.Prefs.EncryptionType
+            $prefView.AESPassPhraseTextBox.Enabled = $true
+            $prefView.AESKeyApplyButton.Enabled = $true
+        } else {
+            $prefView.AESPassPhraseTextBox.Text = ""
+            $prefView.AESPassPhraseTextBox.Enabled = $false
+            $prefView.AESKeyApplyButton.Enabled = $false
+        }
+    })
+
+    $prefView.PlainText.Add_CheckedChanged({
+        if($prefView.PlainText.Checked){
+            $PSAMPref.Prefs.EncryptionType = "RAW"        
+            $acdb.EncryptionType = $PSAMPref.Prefs.EncryptionType
+            $acdb.Sync()
+        }
+    })
+
+    $prefView.AESKeyApplyButton.Add_Click({
         if(-not [string]::IsNullOrEmpty($prefView.AESPassPhraseTextBox.Text)){
-            $Size = 128
-            $rfcKey = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($passwd,($Size/8))
-            $arrKey = $rfcKey.GetBytes($Size/8)
-            $AESKeyBase64 = [System.Convert]::ToBase64String($arrKey)
-            $prefView.AESKeyTextBox.Text = $AESKeyBase64
+            $acdb.setAESKey($prefView.AESPassPhraseTextBox.Text)
+            $acdb.Sync()
         }
     })
 
-    $prefView.AESKeyUpdateButton.Add_Click({
-        if(-not [string]::IsNullOrEmpty($prefView.AESKeyTextBox.Text)){
-            $accountList.AESKeyBase64 = $prefView.AESKeyTextBox.Text
-            $accountList.Sync()
-
-            $PSAMPref.Prefs.EnableAESEncryption = $true
-            $PSAMPref.Sync()
-
-            Set-Clipboard $prefView.AESKeyTextBox.Text
-            [MessageBox]::Show("AES Key Updated. The key has been saved to your clipboard. Please keep it safe.","!! WARNING !!")
-        }
-    })
-
-    $prefView.EnableExpiredAccountHighlightCheckbox.Add_CheckedChanged({
+    $prefView.HighlightExpiredAccountCheckbox.Add_CheckedChanged({
         if($this.Checked){
-            $PSAMPref.Prefs.EnableExpiredAccountHighlight = $true
+            $PSAMPref.Prefs.HighlightExpiredAccount = $true
         }else{
-            $PSAMPref.Prefs.EnableExpiredAccountHighlight = $false
+            $PSAMPref.Prefs.HighlightExpiredAccount = $false
         }
-        $PSAMPref.Sync()
+    })
+
+    $prefForm.Add_Closing({
+        $PSAMPref.Sync()    
     })
 
     $mainForm.ShowDialog()
-
-    $accountList.Close()
 }
 main
