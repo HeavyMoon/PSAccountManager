@@ -20,3 +20,8 @@ As with PSAccountManager, please start it by running `Run_PSPG.bat`.
 
 The symbols contain following characters:  
 `/*-+,!?=()@;:._`
+
+## Notes
+- Requires Windows PowerShell 5.1 or later
+- All data is stored locally; no network communication is performed
+- For any issues or feature requests, please open an issue on GitHub
