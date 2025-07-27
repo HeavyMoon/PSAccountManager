@@ -1,2 +1,3 @@
-acdb.dat*
-prefs
+adb.bin
+prefs.json
+debug/*

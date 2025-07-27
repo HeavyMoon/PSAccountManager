@@ -56,7 +56,7 @@ class PasswdGeneratorView {
     [Button]  $PasswdCopyButton
     [Button]  $PasswdGenerateButton
 
-    [NumericUpDown] $PasswdLenghtNumUpDown
+    [NumericUpDown] $PasswdLengthNumUpDown
     [CheckBox] $EliminateSimilerCharsCheckBox
     [CheckBox] $UseUppercaseCheckBox
     [CheckBox] $UseLowercaseCheckBox
@@ -112,15 +112,15 @@ class PasswdGeneratorView {
         }
         $this.view.Controls.Add($lable_length,0,1)
         
-        $this.PasswdLenghtNumUpDown = New-Object NumericUpDown -Property @{
-            Value = 8
+        $this.PasswdLengthNumUpDown = New-Object NumericUpDown -Property @{
+            Value = 12
             Minimum = 1
             Maximum = 128
             TextAlign = [HorizontalAlignment]::Center
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($this.PasswdLenghtNumUpDown,1,1)
-        $this.view.SetColumnSpan($this.PasswdLenghtNumUpDown,3)
+        $this.view.Controls.Add($this.PasswdLengthNumUpDown,1,1)
+        $this.view.SetColumnSpan($this.PasswdLengthNumUpDown,3)
 
         $this.EliminateSimilerCharsCheckBox = New-Object CheckBox -Property @{
             Text = "eliminate similer chars"
@@ -133,7 +133,7 @@ class PasswdGeneratorView {
 
         $this.UseLowercaseCheckBox = New-Object CheckBox -Property @{
             Text = "lowercase"
-            Checked = $false
+            Checked = $true
             Dock = [DockStyle]::Fill
             Padding = 5
         }
@@ -151,7 +151,7 @@ class PasswdGeneratorView {
 
         $this.UseNumbersCheckBox = New-Object CheckBox -Property @{
             Text = "numbers"
-            Checked = $false
+            Checked = $true
             Dock = [DockStyle]::Fill
             Padding = 5
         }
@@ -174,10 +174,10 @@ class PasswdGeneratorView {
 # Main
 # ----------------------------
 function main(){
-    $pgFrom = New-Object CustomForm
+    $pgForm = New-Object CustomForm
     $pgView = New-Object PasswdGeneratorView
 
-    $pgFrom.SetView($pgView.view,300,300)
+    $pgForm.SetView($pgView.view,300,300)
 
     $pgView.PasswdCopyButton.Add_Click({
         if( -not [string]::IsNullOrEmpty($pgView.PasswdTextBox.Text)){
@@ -215,31 +215,27 @@ function main(){
         }
 
         if($pgView.EliminateSimilerCharsCheckBox.Checked){
-            if($pattern.Contains("0") -and $pattern.Contains("O")){
-                $pattern = $pattern | foreach {$_ -replace "0",""}
-            }
-            if($pattern.Contains("1") -and $pattern.Contains("l")){
-                $pattern = $pattern | foreach {$_ -replace "1",""}
-            }
-            if($pattern.Contains("2") -and $pattern.Contains("Z")){
-                $pattern = $pattern | foreach {$_ -replace "2",""}
-            }
-            if($pattern.Contains("6") -and $pattern.Contains("b")){
-                $pattern = $pattern | foreach {$_ -replace "6",""}
-            }
-            if($pattern.Contains("9") -and $pattern.Contains("g")){
-                $pattern = $pattern | foreach {$_ -replace "9",""}
+            $similars = @(
+                @("0", "O"),
+                @("1", "l"),
+                @("2", "Z"),
+                @("6", "b"),
+                @("9", "g")
+            )
+            foreach ($pair in $similars) {
+                $idx = Get-Random -Minimum 0 -Maximum 2  # 0 or 1
+                $pattern = $pattern -replace $pair[$idx], ""
             }
         }
 
         if( -not [string]::IsNullOrEmpty($pattern)){
-            $passwd =  -join ((1..$pgView.PasswdLenghtNumUpDown.Value) | % {Get-Random -input $pattern.ToCharArray()})
+            $passwd =  -join ((1..$pgView.PasswdLengthNumUpDown.Value) | % {Get-Random -input $pattern.ToCharArray()})
             $pgView.PasswdTextBox.Text = $passwd
         }else{
             $pgView.PasswdTextBox.Text = ""
         }
     })
 
-    $pgFrom.ShowDialog()
+    $pgForm.ShowDialog()
 }
 main
