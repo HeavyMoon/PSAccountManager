@@ -24,5 +24,5 @@
 @echo off
 @if not "%~0"=="%~dp0.\%~nx0" start /min cmd /c,"%~dp0.\%~nx0" %* & goto :eof
 SET ScriptDir=%~dp0
-echo %ScriptDir:~0,-1%\main.ps1
-Powershell.exe -ExecutionPolicy remotesigned -Command "Add-Type -AssemblyName System.Windows.Forms;Add-Type -AssemblyName System.Drawing;%ScriptDir:~0,-1%\PSAccountManager.ps1"
+pushd %ScriptDir%
+Powershell.exe -ExecutionPolicy RemoteSigned -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; .\PSAccountManager.ps1"

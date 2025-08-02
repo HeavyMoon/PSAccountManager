@@ -28,7 +28,7 @@
 
     .DESCRIPTION
     This is a PowerShell-based Account Manager.
-    Account data is encrypted by DPAPI(default) or AES.
+    Account data is encrypted by DPAPI.
     Requires $PSVersion 5.1 or higher.
 
     .LINK
@@ -57,7 +57,7 @@ class Prefs {
             $this.HighlightExpiredAccount = $data.HighlightExpiredAccount
         }else{
             New-Item -Path $this.PrefsPath -ItemType File -Force
-            Set-ItemProperty -Path $this.PrefsPath -Name Attributes -Value Hidden
+            #Set-ItemProperty -Path $this.PrefsPath -Name Attributes -Value Hidden
             $this.Sync()
         }
     }
@@ -83,7 +83,7 @@ class AccountDB {
     [int] Load() {
         if ( -not (Test-Path -Path $this.DataPath -PathType Leaf) ) {
             New-Item -Path $this.DataPath -ItemType File -Force
-            Set-ItemProperty -Path $this.DataPath -Name Attributes -Value Hidden
+            #Set-ItemProperty -Path $this.DataPath -Name Attributes -Value Hidden
             return 0
         }
 
@@ -237,49 +237,6 @@ class CustomForm:Form {
         $this.Controls.Clear()
     }
 }
-
-#class EntranceView {
-#    [TableLayoutPanel] $view
-#    [Label]            $TitleLabel
-#    [TextBox]          $PasswdBox
-#    [Button]           $AcceptButton
-#
-#    EntranceView(){
-#        $this.view = New-Object TableLayoutPanel
-#        $this.view = [TableLayoutPanel]@{
-#            RowCount = 2
-#            ColumnCount = 2
-#            Dock = [DockStyle]::Fill
-#            #CellBorderStyle = [BorderStyle]::FixedSingle
-#        }
-#        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Percent,50)))
-#        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Percent,50)))
-#        $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Percent,70)))
-#        $this.view.ColumnStyles.Add((New-Object ColumnStyle([SizeType]::Percent,30)))
-#
-#        $this.TitleLabel = New-Object Label -Property @{
-#            TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
-#            Dock      = [DockStyle]::Fill
-#            Padding   = 5
-#        }
-#        $this.view.Controls.Add($this.TitleLabel,0,0)
-#        $this.view.SetColumnSpan($this.TitleLabel,2)
-#
-#        $this.PasswdBox = New-Object TextBox -Property @{
-#            PasswordChar  = "*"
-#            Multiline     = $false
-#            AcceptsReturn = $true
-#            Dock          = [DockStyle]::Fill
-#        }
-#        $this.view.Controls.Add($this.PasswdBox,0,1)
-#
-#        $this.AcceptButton = New-Object Button -Property @{
-#            Text = "OK"
-#            Dock = [DockStyle]::Fill
-#        }
-#        $this.view.Controls.Add($this.AcceptButton,1,1)
-#    }
-#}
 
 class ItemView {
     [TableLayoutPanel] $view
@@ -446,7 +403,7 @@ class ItemView {
 	        "label"           = $this.AccountName.Text
 	        "id"              = $this.IDTextBox.Text
 	        "pw"              = $this.PWTextBox.Text
-	        "expdate_stat" = $this.ExpDateCheckBox.Checked
+	        "expdate_stat"    = $this.ExpDateCheckBox.Checked
 	        "expdate"         = $this.ExpDateTimePicker.Value
 	        "note"            = $this.NoteTextBox.Text
         }
@@ -551,8 +508,9 @@ class ListView {
 
 class PrefsView {
     [TableLayoutPanel] $view
-    [Label]            $MessageLabel
+    [Label]            $ImportMessageLabel
     [Button]           $ImportButton
+    [Label]            $ExportMessageLabel
     [Button]           $ExportButton
     [CheckBox]         $HighlightExpiredAccountCheckbox
 
@@ -563,17 +521,23 @@ class PrefsView {
         # +------------+------------+------------+------------+
         # | Label                                             |
         # +------------+------------+------------+------------+
-        # | FilePicker                           | Btn_Export |
+        # |                                      | Btn_Import |
+        # +------------+------------+------------+------------+
+        # | Label                                             |
+        # +------------+------------+------------+------------+
+        # |                                      | Btn_Export |
         # +------------+------------+------------+------------+
         # | CheckBox_HighlightExpiredAccount                  |
         # +------------+------------+------------+------------+
 
         $this.view = New-Object TableLayoutPanel -Property @{
-            RowCount = 4
+            RowCount = 6
             ColumnCount = 4
             Dock = [DockStyle]::Fill
             #CellBorderStyle = [BorderStyle]::FixedSingle
         }
+        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
+        $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::AutoSize)))
         $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
         $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::AutoSize)))
         $this.view.RowStyles.Add((New-Object RowStyle([SizeType]::Absolute,33)))
@@ -585,42 +549,50 @@ class PrefsView {
         
         $title = New-Object Label -Property @{
             Name = "View_Title"
-            Text = "Preferences (experimental)"
+            Text = "Preferences"
             TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
             Dock = [DockStyle]::Fill
         }
         $this.view.Controls.Add($title,0,0)
         $this.view.SetColumnSpan($title,4)
 
-        $this.MessageLabel = New-Object Label -Property @{
-            Name = "Label_Message"
-            Text = "The import function is not implemented. The export function exports account information in plain text. Please be careful when handling the file."
+        $this.ImportMessageLabel = New-Object Label -Property @{
+            Name = "Label_ImportMessage"
+            Text = "An import file in the same format as the file output by the export function is required. If data with the same account name exists, the account information will be overwritten. It is strongly recommended that you export and back up your data before importing."
             AutoSize = $true
         }
-        $this.view.Controls.Add($this.MessageLabel,0,1)
-        $this.view.SetColumnSpan($this.MessageLabel,4)
+        $this.view.Controls.Add($this.ImportMessageLabel,0,1)
+        $this.view.SetColumnSpan($this.ImportMessageLabel,4)
 
         $this.ImportButton = New-Object Button -Property @{
             Name = "Button_Import"
             Text = "Import"
             Dock = [DockStyle]::Fill
-            Enabled = $false # Import function is not implemented yet
+            Enabled = $true
         }
-        $this.view.Controls.Add($this.ImportButton,2,2)
+        $this.view.Controls.Add($this.ImportButton,3,2)
+
+        $this.ExportMessageLabel = New-Object Label -Property @{
+            Name = "Label_ExportMessage"
+            Text = "The export function exports account information in JSON format. Please be careful when handling the file."
+            AutoSize = $true
+        }
+        $this.view.Controls.Add($this.ExportMessageLabel,0,3)
+        $this.view.SetColumnSpan($this.ExportMessageLabel,4)
 
         $this.ExportButton = New-Object Button -Property @{
             Name = "Button_Export"
             Text = "Export"
             Dock = [DockStyle]::Fill
         }
-        $this.view.Controls.Add($this.ExportButton,3,2)
+        $this.view.Controls.Add($this.ExportButton,3,4)
 
         $this.HighlightExpiredAccountCheckbox = New-Object CheckBox -Property @{
             Name = "CheckBox_HighlightExpiredAccount"
             Text = "Enable Expired Account Highlight"
             AutoSize = $true
         }
-        $this.view.Controls.Add($this.HighlightExpiredAccountCheckbox,0,3)
+        $this.view.Controls.Add($this.HighlightExpiredAccountCheckbox,0,5)
         $this.view.SetColumnSpan($this.HighlightExpiredAccountCheckbox,4)
     }
 
@@ -796,13 +768,50 @@ function main(){
     }
 
     # Preferences
-    $prefsForm.SetView($prefsView.view,450,250)
+    $prefsForm.SetView($prefsView.view,450,350)
 
     $prefsView.HighlightExpiredAccountCheckbox.Add_CheckedChanged({
         if($this.Checked){
             $prefs.HighlightExpiredAccount = $true
         }else{
             $prefs.HighlightExpiredAccount = $false
+        }
+    })
+
+    $prefsView.ImportButton.Add_Click({
+        $fileDialog = New-Object System.Windows.Forms.OpenFileDialog
+        $fileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+        $fileDialog.Title = "Import Account Data"
+        if($fileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){
+            $importData = Get-Content $fileDialog.FileName | ConvertFrom-Json
+            if ($null -eq $importData) {
+                [System.Windows.Forms.MessageBox]::Show("Error reading JSON data from file: $($fileDialog.FileName)","Error",0,[System.Windows.Forms.MessageBoxIcon]::Error)
+                return
+            }
+            $importData.PSObject.Properties | Sort-Object Name | ForEach-Object {
+                try {
+                    $item = [ordered]@{
+                        "$($_.Name)" = @{
+                            "id"              = [string]$_.Value.id
+                            "pw"              = [string]$_.Value.pw
+                            "expdate_stat"    = [string]$_.Value.expdate_stat
+                            "expdate"         = [datetime]$_.Value.expdate
+                            "note"            = [string]$_.Value.note
+                        }
+                    }
+                } catch {
+                    [System.Windows.Forms.MessageBox]::Show("Error parsing JSON data: $($_.Exception.Message)","Error",0,[System.Windows.Forms.MessageBox]::Error)
+                    return
+                }
+
+                # add or update
+                $adb.Add($item)
+
+                # add if item not exists
+                if ( -not $listView.AccountListBox.Items.Contains($_.Name) ) {
+                    $listView.Add($_.Name)
+                }
+            }
         }
     })
 
@@ -823,4 +832,12 @@ function main(){
     $mainForm.SetView($listView.view,380,350)
     $mainForm.ShowDialog()
 }
+
+if ( Test-Path -Path "${PSScriptRoot}\proc" -Type Leaf ) {
+    [System.Windows.Forms.MessageBox]::Show("Multiple startup is prohibited.","PSAccountManager",0,[System.Windows.Forms.MessageBoxIcon]::Information)
+    exit 1
+}
+
+Set-Content -Path "${PSScriptRoot}\proc" -Value "$pid"
 main
+Remove-Item -Path "${PSScriptRoot}\proc" -Force

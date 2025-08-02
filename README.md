@@ -1,8 +1,5 @@
 # PowerSehll Account Manager
 ## PSAccountManager
-
-:warning: This program probably still has bugs. If you find a bug, please report it. :warning:
-
 This is a password manager implemented using only standard Windows functions based on PowerShell 5.1.
 All account information is encrypted with DPAPI.
 
